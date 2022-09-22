@@ -1,0 +1,6 @@
+.DS_Store
+*/.DS_Store
+*.pyc
+*.vscode
+/web-ui/node_modules
+/web-ui/package-lock.json
