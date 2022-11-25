@@ -203,7 +203,7 @@ class ProjectMapping:
     """
 
     map_config = os.path.join(
-        os.path.dirname(__file__), "conf", "branch_project_mapping.yaml"
+         os.path.dirname(os.path.dirname(__file__)), "conf", "branch_project_mapping.yaml"
     )
 
     def __init__(self) -> None:
