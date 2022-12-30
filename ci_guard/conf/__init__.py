@@ -30,7 +30,7 @@ class PreloadingSettings:
         with the user's configuration data
         """
         settings_file = os.environ.get("CI-SETTINGS") or os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "config.yaml"
+            os.path.dirname(__file__), "config.yaml"
         )
         if not os.path.exists(settings_file):
             raise RuntimeError(

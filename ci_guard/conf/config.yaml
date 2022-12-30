@@ -1,0 +1,56 @@
+# The token for the code cloud repository
+gitee_token: 
+
+# repo depend 
+requires_repo: 
+
+# The user who builds the environment
+build_env_account: 
+
+# Build environment user password
+build_env_passwd: 
+
+# Owner of the warehouse
+warehouse_owner: 
+
+# Host address of the build environment
+build_host: 
+
+# File Server address
+files_server: 
+
+# Oecp software package comparison tool comparison result output file
+compare_result:
+
+# Working directory
+workspace:
+
+# Software package arch
+arch:
+
+# prid
+pr:
+
+# repo
+repo:
+
+# submitter
+committer: 
+
+# Mysql database host
+db_host:
+
+# Mysql port
+port:
+
+# Mysql user name password
+user_passwd:
+
+# Pr comment id
+commentid:
+
+branch: 
+
+build_env: 
+
+ebs_server: http://120.46.196.17:10012
