@@ -69,5 +69,7 @@ class CusColoredFormatter(ColoredFormatter):
         )
 
 
-logger = get_logger(log_conf=os.path.join(os.path.dirname(__file__), "log.conf"))
+logger = get_logger(
+    log_conf=os.path.join(os.path.dirname(__file__), "conf", "log.conf")
+)
 __all__ = ("get_logger", "logger", "CusColoredFormatter")
