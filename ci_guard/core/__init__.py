@@ -202,7 +202,9 @@ class ProjectMapping:
     Mapping of branches and projects
     """
 
-    map_config = os.path.join(os.path.dirname(__file__), "branch_project_mapping.yaml")
+    map_config = os.path.join(
+        os.path.dirname(__file__), "conf", "branch_project_mapping.yaml"
+    )
 
     def __init__(self) -> None:
         self._map = dict()
