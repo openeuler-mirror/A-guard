@@ -56,3 +56,5 @@ MAINLINE_PROJECT_NAMES = [
     "openEuler:Qt",
     "openEuler:Ruby",
 ]
+
+OS_VARIANR_MAP = {"openEuler-22.03-LTS-SP1": "openEuler:22.03-LTS-Next"}
