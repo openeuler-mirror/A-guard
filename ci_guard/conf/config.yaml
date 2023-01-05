@@ -53,4 +53,4 @@ branch:
 
 build_env: 
 
-ebs_server: http://120.46.196.17:10012
+ebs_server: 
