@@ -58,3 +58,11 @@ MAINLINE_PROJECT_NAMES = [
 ]
 
 OS_VARIANR_MAP = {"openEuler-22.03-LTS-SP1": "openEuler:22.03-LTS-Next"}
+# abi change effects number
+max_abi_change_effects_number = 5
+
+# max change effects number
+max_change_effects_number = 20
+
+# max random number
+max_random_number = 15
