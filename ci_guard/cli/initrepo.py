@@ -10,3 +10,20 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
+import sys
+import click
+from core.install import InstallVerify
+
+
+@click.command("initrepo", help="Update repo source file")
+def init_repo():
+    click.echo("[INFO] start update repo")
+    result = InstallVerify().update_repo()
+    if not result:
+        click.echo(click.style("Failed to update repo source", fg="red"))
+        sys.exit(1)
+
+    click.echo(click.style("Update repo source successful", fg="green"))
+
+
+__all__ = "init_repo"

@@ -1,0 +1,57 @@
+openEuler:Epol: '
+
+  Prefer: libpq
+
+  Preinstall: pesign-obs-integration
+
+  Preinstall: digest-list-tools selinux-policy-targeted
+
+
+  Macros:
+
+  # Add for glibc by xiasenlin,2022/02/23, related issue:https://gitee.com/src-openeuler/obs_meta/issues/I4UXKX
+
+  %glibc_abort_after_test_fail 1
+
+
+  %__brp_digest_list /usr/lib/rpm/brp-digest-list %{buildroot}
+
+  :Macros'
+openEuler:Factory: "\nPrefer: libpq\nPrefer: libglade2 postgresql-libs apr zlib\n\
+  Prefer: libnghttp2 libglvnd-devel aqute-bnd hamcrest maven-plugin-plugin maven plexus-interactivity\
+  \ groovy antlr4 uglify-js bouncycastle glassfish-websocket-api aws-sdk-java\nPrefer:\
+  \ jackson-dataformats-binary nodejs-nan libwbclient\nPrefer: jetty-http jetty-io\
+  \ jetty-security jetty-server jetty-servlet jetty-util\nPreinstall: pesign-obs-integration\n\
+  Preinstall: digest-list-tools selinux-policy-targeted\nPreinstall: sudo\nMacros:\n\
+  # Add for glibc by xiasenlin,2022/02/23, related issue:https://gitee.com/src-openeuler/obs_meta/issues/I4UXKX\n\
+  %glibc_abort_after_test_fail 1\n%__brp_digest_list /usr/lib/rpm/brp-digest-list\
+  \ %{buildroot}\n:Macros\nMacros:\n%nodejs_arches aarch64 x86_64 \n%fedora 30\n%rhel\
+  \ 8"
+origin_epol: '
+
+  Prefer: libpq
+
+  Preinstall: pesign-obs-integration
+
+  Preinstall: digest-list-tools selinux-policy-targeted
+
+  Macros:
+
+  %__brp_digest_list /usr/lib/rpm/brp-digest-list %{buildroot}
+
+  :Macros'
+origin_factory: "\nPreinstall: sudo \nPrefer: libglade2 postgresql-libs apr zlib\n\
+  Prefer: libnghttp2 libglvnd-devel aqute-bnd hamcrest maven-plugin-plugin maven plexus-interactivity\
+  \ groovy antlr4 uglify-js bouncycastle glassfish-websocket-api aws-sdk-java\nPrefer:\
+  \ jackson-dataformats-binary nodejs-nan libwbclient\nPrefer: jetty-http jetty-io\
+  \ jetty-security jetty-server jetty-servlet jetty-util\nMacros:\n%nodejs_arches\
+  \ aarch64 x86_64 \n%fedora 30\n%rhel 8"
+origin_mainline: '
+
+  Macros:
+
+  # Add for glibc by xiasenlin, 2022/02/23, related issue:https://gitee.com/src-openeuler/obs_meta/issues/I4UXKX
+
+  %glibc_abort_after_test_fail 1
+
+  :Macros'
