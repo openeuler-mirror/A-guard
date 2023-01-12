@@ -688,11 +688,11 @@ class ObsBuildVerify(BuildMeta):
         self.password = password or config.build_env_passwd
         self.api = OpenBuildService(account=self.account, password=self.password)
         self.pull = Pull()
-        self.gitee = Gitee()
         self.test_branch = ""
         self.arch = arch
         self.p_project = ProjectMapping()
         self.origin_package, self.pr_num = extract_repo_pull(pull_request)
+        self.gitee = Gitee(self.origin_package)
         self.target_branch = target_branch
         self.multiple = multiple
         self.ignore = ignore
@@ -1401,4 +1401,37 @@ class ObsBuildVerify(BuildMeta):
             build_detail=package_build_results, current_result=current_result
         )
         process_record.update_check_options(steps=steps, check_result=check_result)
+        return check_result
+
+
+class BuildVerify:
+    """
+    Package compilation factory functions
+    """
+
+    def __init__(
+        self, pull_request, target_branch, arch, multiple, ignore=False
+    ) -> None:
+        self.pull_request = pull_request
+        self.target_branch = target_branch
+        self.arch = arch
+        self.multiple = multiple
+        self.ignore = ignore
+
+    def build(self):
+        """
+        Factory function general entry
+        Raises:
+            RuntimeError: The build platform selection error
+
+        Returns:
+            check_result: The result of the entire process of package compilation
+        """
+        if config.build_env not in ["obs", "ebs"]:
+            raise RuntimeError(f"{config.build_env} must in obs and ebs")
+        base_buildverify = dict(ebs=EbsBuildVerify, obs=ObsBuildVerify)
+        buildverify = base_buildverify[config.build_env](
+            self.pull_request, self.target_branch, self.arch, self.multiple, self.ignore
+        )
+        check_result = buildverify.build()
         return check_result
