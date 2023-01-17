@@ -12,6 +12,8 @@
 # ******************************************************************************/
 import os
 import json
+import yaml
+from pathlib import Path
 from api.gitee import Gitee
 from logger import logger
 from command import command
@@ -77,8 +79,12 @@ class InstallBase:
             repo_rpms = []
         finally:
             os.remove(repo_rpm_file)
+        logger.info(f"Repo RPMS:{repo_rpms}")
         for rpm_repo in repo_rpms:
-            repo, rpm = rpm_repo
+            if "kernel" in rpm_repo:
+                _, repo, rpm = rpm_repo
+            else:
+                repo, rpm = rpm_repo
             if repo in repo_rpm_map_dict:
                 repo_rpm_map_dict[repo].add(rpm)
             else:
@@ -135,6 +141,7 @@ class InstallBase:
                 install_detail=install_results, current_result=setp_result
             ),
         )
+        logger.info(f"CURRENT RESULT:{current_result}")
         return current_result
 
     def _multiple_install_check(self, rpms, archive_rpms: list = None):
@@ -262,7 +269,18 @@ class InstallBase:
         except TypeError:
             logger.warning(f"Not a valid pull link: {pull_request}.")
             return
-
+        # update repo
+        logger.info("=======================Start updating the repo source files=====================")
+        yaml_path = Path(__file__).parents[1].joinpath("conf", "config.yaml")
+        with open(yaml_path, encoding="utf-8") as file:
+            content = yaml.load(file.read(), Loader=yaml.SafeLoader)
+            build_id = content["build_id"]
+            logger.info(f"build_id:{build_id}")
+            unifybuild = UnifyBuildInstallVerify()
+            if not unifybuild.update_repo(build_id):
+                logger.error("repo error")
+                return
+        logger.info("=============Update repo source successful=============")
         # multiple package install
         if multiple:
             logger.info(
@@ -299,8 +317,8 @@ class InstallBase:
                 download_rpms.update(
                     {link_pull["repo"]: link_pull["pr"] for link_pull in link_pulls}
                 )
-
         if download_rpms:
+            logger.info(f"download rpms:{download_rpms}")
             self._download_rpms(download_rpms)
             # Install the rpm compiled by the test project
             command(
@@ -415,7 +433,7 @@ class UnifyBuildInstallVerify(InstallBase):
         repos = dict()
         for repo_id in repo_ids:
             cmds = f"ccb select rpm_repos repo_id={repo_id} architecture={self._arch} -f rpm_repo_path"
-            code, cmd_out, error = command(cmds=cmds.split())
+            code, cmd_out, error = command(cmds=cmds.split(), console=False)
             if code:
                 logger.error(
                     f"Failed to get the project repo source,command: {cmds} error: {error}"
@@ -427,7 +445,8 @@ class UnifyBuildInstallVerify(InstallBase):
 
     def _get_repo_id(self, build_id):
         cmds = f"ccb select builds build_id={build_id} -f repo_id,ground_projects"
-        code, out, error = command(cmds=cmds.split())
+        logger.info(cmds)
+        code, out, error = command(cmds=cmds.split(), console=False)
         if code:
             logger.error(f"Failed to get the repo id,command: {cmds} error: {error}.")
             raise ValueError()
@@ -435,7 +454,7 @@ class UnifyBuildInstallVerify(InstallBase):
         try:
             project_repo = build[0]["_source"]
             project_repo_id = project_repo["repo_id"]
-            ground_project_repo_id = project_repo["ground_projects"][-1]["repo_id"]
+            ground_project_repo_id = [ground_project["repo_id"] for ground_project in project_repo["ground_projects"]]
         except (KeyError, IndexError):
             raise ValueError()
         return project_repo_id, ground_project_repo_id
@@ -445,22 +464,24 @@ class UnifyBuildInstallVerify(InstallBase):
         Generate the repo source
         :param branch: Warehouse branch
         """
+        repo_ids = []
         try:
             project_repo_id, ground_project_repo_id = self._get_repo_id(
                 build_id=build_id
             )
-            repos = self._get_repos(repo_ids=(project_repo_id, ground_project_repo_id))
-
-        except (ValueError, IndexError, KeyError):
+            repo_ids.append(project_repo_id)
+            repo_ids.extend(ground_project_repo_id)
+            repos = self._get_repos(repo_ids=repo_ids)
+        except (ValueError, IndexError, KeyError) as ebs_error:
+            logger.error(ebs_error)
             return False
 
-        logger.info(f"Start updating the repo source: {config.branch}")
         repo_content = ""
         for project, repo in repos.items():
             repo_content += f"""
 [{project}]
 name={project}
-baseurl={config.ebs_server}{repo}
+baseurl={config.ebs_server}/api{repo}
 enabled=1
 gpgcheck=0
 """
@@ -470,7 +491,6 @@ gpgcheck=0
             ) as file:
                 file.write(repo_content)
             logger.info(repo_content)
-            logger.info("The repo source update successful.")
             return True
         except IOError as error:
             logger.error(error)

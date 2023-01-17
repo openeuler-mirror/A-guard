@@ -53,4 +53,7 @@ branch:
 
 build_env: 
 
-ebs_server: 
+# Trigger build id
+build_id:
+# ebs website
+ebs_server: http://172.16.1.108:30108

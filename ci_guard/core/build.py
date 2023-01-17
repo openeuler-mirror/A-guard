@@ -10,11 +10,8 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-
-import datetime
-import itertools
 import os
-
+import itertools
 import sys
 import re
 import shutil
@@ -29,17 +26,11 @@ from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from api.build_env import OpenBuildService
 from api.gitee import Gitee
-from command import command
 from conf import config
 from .install import UnifyBuildInstallVerify
-
-from core import ProcessRecords, extract_repo_pull
 from command import command
-from retrying import RetryError
 from contextlib import contextmanager
 from json import JSONDecodeError
-from core.pull_link import Pull
-
 from retrying import retry
 
 from constant import GIT_FETCH, MAINLINE_PROJECT_NAMES, OS_VARIANR_MAP, OSC_CO_PATH
@@ -80,20 +71,35 @@ def catch_error(func):
 
 
 class BuildMeta(metaclass=ABCMeta):
+    """
+    Build abstract classes that define build methods, single-package builds, and multi-package builds
+    """
     @abstractmethod
     def build(self):
+        """
+        Rpm package building
+        """
         pass
 
     @abstractmethod
     def build_prep_single(self):
+        """
+        Single rpm build
+        """
         pass
 
     @abstractmethod
     def build_prep_multi(self):
+        """
+        Multi rpm build
+        """
         pass
 
 
 class EbsBuildVerify(BuildMeta):
+    """
+    EBS environment builds rpm packages
+    """
     def __init__(
         self, pull_request, target_branch, arch, multiple, ignore=False
     ) -> None:
@@ -116,10 +122,11 @@ class EbsBuildVerify(BuildMeta):
         """
         return f"{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
 
-    def create_projrct(self):
+    def create_project(self):
         """
         Create a test project
         """
+        logger.info(f"architecture:{self.arch}")
         base_dict = self.dict_data_constitute(
             self.origin_package, pr_id=self.pr_num, my_spec_type="my_specs"
         )
@@ -136,6 +143,7 @@ class EbsBuildVerify(BuildMeta):
                 ],
             }
         )
+        logger.info(f"BASE DICT:{base_dict}")
         self.operate_package_project(base_dict, operate="create")
 
     @staticmethod
@@ -157,7 +165,7 @@ class EbsBuildVerify(BuildMeta):
         Returns:
             response: After json.loads, return the data
         """
-        code, output, error = command(cmds, console=False)
+        code, output, error = command(cmds, console=False, synchronous=False)
         try:
             response = json.loads(output)
             if isinstance(response, list):
@@ -169,6 +177,7 @@ class EbsBuildVerify(BuildMeta):
             else:
                 raise RuntimeError(f"{cmds} command execute failed  {output}")
         except JSONDecodeError as error:
+            logger.error(f"JSONDecodeError:{error}")
             raise RuntimeError(
                 f"{cmds} command, return json data {output} is wrong,{error}"
             )
@@ -218,7 +227,7 @@ class EbsBuildVerify(BuildMeta):
             with self.update_package_operation(
                 content, operate_project_cmds, _json_path
             ) as response:
-                logger.info(f"{response.get('data') or response.get('msg')}")
+                logger.debug(f"{response.get('data') or response.get('msg')}")
         except (TypeError, OSError, IOError, PermissionError) as error:
             raise RuntimeError(f"Failed to update project, because {error}")
 
@@ -251,7 +260,15 @@ class EbsBuildVerify(BuildMeta):
         Returns:
             base_dict: Dictionary data after combination
         """
+        os_variant_name = (
+            OS_VARIANR_MAP.get(self.target_branch)
+            if OS_VARIANR_MAP.get(self.target_branch)
+            else "openEuler:22.09"
+        )
         base_dict = {
+            "build_targets": [
+                {"os_variant": os_variant_name, "architecture": self.arch}
+            ],
             my_spec_type: [
                 {
                     "spec_name": spec_name,
@@ -325,11 +342,7 @@ class EbsBuildVerify(BuildMeta):
                 )
                 final_build_detail_results.append(_build_detail)
 
-        # update repo
-        logger.info("Start updating the repo source......")
-        unifybuild = UnifyBuildInstallVerify()
-        if not unifybuild.update_repo(build_id[0]):
-            return final_build_detail_results
+        logger.info("Record the build id in the configuration file.")
         # Record the build id in the configuration file
         self._record_build_id(build_id[0])
         return final_build_detail_results
@@ -414,7 +427,7 @@ class EbsBuildVerify(BuildMeta):
             107,
         ], [201, 202, 203, 205]
         package_statuses, project_statuses = [101], [200]
-        logger.info("The packages under the project are  building, please wait...")
+        logger.info("The packages under the project are building, please wait...")
         build_detail = []
         while package_statuses or project_statuses:
             time.sleep(10)
@@ -517,7 +530,7 @@ class EbsBuildVerify(BuildMeta):
             RuntimeError: Throw a record id exception
         """
         try:
-            yaml_path = Path(__file__).parents[1].joinpath("config.yaml")
+            yaml_path = Path(__file__).parents[1].joinpath("conf", "config.yaml")
             with open(yaml_path, encoding="utf-8") as file:
                 content = yaml.load(file.read(), Loader=yaml.SafeLoader)
                 content["build_id"] = build_id
@@ -553,13 +566,13 @@ class EbsBuildVerify(BuildMeta):
         # Determine if a repository exists
         if not self._check_warehouse_exists(self.origin_package):
             raise RuntimeError(f"This {self.origin_package} repository does not exist")
-        logger.info("[INFO] create_projrct")
-        self.create_projrct()
+        logger.info("[INFO] Create project")
+        self.create_project()
         # 2. Empty the project
-        logger.info("[INFO] clear_project")
+        logger.info("[INFO] Clear ebs project exist file")
         self.clear_project()
         # 3. Upload the pr package
-        logger.info("[INFO] Upload the pr package")
+        logger.info("[INFO] Upload code")
         self.operate_package_project(
             content=self.dict_data_constitute(self.origin_package, pr_id=self.pr_num)
         )
@@ -635,6 +648,18 @@ class EbsBuildVerify(BuildMeta):
             build_detail.update({packages_result.get("package"): _result})
         return build_detail
 
+    def kernel_build(self, check_results):
+        """
+        function deal with kernel
+
+        Returns:
+            check_result: The result of the entire process of package compilation
+        """
+        for check_result in check_results:
+            if check_result.get("package") == "kernel":
+                check_results = [check_result]
+        return check_results
+
     def build(self):
         """
         The package compiles the entire process
@@ -649,6 +674,9 @@ class EbsBuildVerify(BuildMeta):
         else:
             package_build_results = self.build_prep_single()
             steps = "single_build_check"
+        # 只鉴别kernel的结果
+        if self.origin_package == "kernel":
+            package_build_results = self.kernel_build(package_build_results)
         result_field, package_build_resultes = (
             ("build_result", list(package_build_results.values()))
             if isinstance(package_build_results, dict)
@@ -843,7 +871,7 @@ class ObsBuildVerify(BuildMeta):
         """
         obs_branch = self.p_project.branch_project(self.target_branch)
         for branch in obs_branch:
-            if self.api.get_package_meta(branch, package):
+            if self.api.get_package_meta("info", branch, package):
                 logger.info(f"This package {package} is under the project {branch}")
                 return branch
         return False
@@ -1175,8 +1203,14 @@ class ObsBuildVerify(BuildMeta):
                 f"{src_openeuler_ulr}/{origin_package}", pr_num, origin_package
             ):
                 raise BranchPackageError("failed to pull latest package")
+
+        logger.info("checkout ... ok")
+
         self._handle_package_meta(find_branch, origin_package)
         self._prepare_build_environ(find_branch, origin_package)
+
+        logger.info("prepare environ ... ok")
+
         co_code, _, co_error = command(["osc", "co", branch_name], cwd=OSC_CO_PATH)
         cp_code, cp_error = self.copy_pr_osc(origin_package, branch_name)
         osc_package_path = os.path.join(OSC_CO_PATH, branch_name, origin_package)
@@ -1217,6 +1251,7 @@ class ObsBuildVerify(BuildMeta):
             find_branch = self.find_repo(relation_pr["package"])
             if find_branch:
                 self.upload_pr_code_project(
+                    find_branch,
                     self.src_openeuler_ulr,
                     relation_pr["package"],
                     relation_pr["pull"],
@@ -1231,7 +1266,7 @@ class ObsBuildVerify(BuildMeta):
         Args:
             find_branch: Package presence obs project
         """
-        
+
         self.test_branch = get_test_project_name(self.origin_package, self.pr_num)
         find_branch, create_project_result = self.create_project(find_branch)
         if create_project_result.get("status") == "failed":
@@ -1434,4 +1469,8 @@ class BuildVerify:
             self.pull_request, self.target_branch, self.arch, self.multiple, self.ignore
         )
         check_result = buildverify.build()
+        build_details = check_result.get("build_detail")
+        for build_detail in build_details:
+            log_url = build_detail.get("log_url").replace("http://172.16.1.108:30108/", "https://eulermaker.compass-ci.openeuler.openatom.cn/")
+            logger.info(f"The package's build detail url:{log_url}")
         return check_result

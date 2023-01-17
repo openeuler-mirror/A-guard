@@ -10,14 +10,14 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-from pathlib import Path
-from conf import config
+import os
 import os.path
 import yaml
+from pathlib import Path
+from conf import config
 from api.gitee import Gitee
 from core import extract_repo_pull, ProcessRecords, get_test_project_name
 from logger import logger
-import os
 
 
 class Comment:
@@ -97,7 +97,7 @@ class Comment:
             else:
                 self._modify_comment_to_pr(notify_message, config.process_comment_id)
         else:
-            logger.warning(f"Add comment content is empty")
+            logger.warning("Add comment content is empty")
 
     @staticmethod
     def _add_notify_users(users):
@@ -129,7 +129,7 @@ class Comment:
                 with open(yaml_path, "w", encoding="utf-8") as f:
                     yaml.dump(data=content, stream=f, allow_unicode=True)
             except (FileNotFoundError, yaml.YAMLError) as error:
-              logger.error(f"data write yaml error {error}")
+                logger.error(f"data write yaml error {error}")
 
     def _modify_comment_to_pr(self, message, process_comment_id):
         """
@@ -142,7 +142,7 @@ class Comment:
             number=process_comment_id, body=message
         )
         if not response:
-           logger.error(f"Failed to comment content {message} to {self.pr}")
+            logger.error(f"Failed to comment content {message} to {self.pr}")
 
     def _get_process_message(self):
         """
@@ -154,7 +154,7 @@ class Comment:
             os.path.dirname(current_path), "conf/process_message.yaml"
         )
         try:
-            with open(message_file, "r") as msg_file:
+            with open(message_file, "r", encoding="utf-8") as msg_file:
                 process_message = yaml.safe_load(msg_file)
                 return process_message
         except yaml.YAMLError as error:

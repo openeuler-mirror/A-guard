@@ -17,6 +17,9 @@ from core.install import InstallVerify
 
 @click.command("initrepo", help="Update repo source file")
 def init_repo():
+    """
+    Initialize the build repo file
+    """
     click.echo("[INFO] start update repo")
     result = InstallVerify().update_repo()
     if not result:
@@ -26,4 +29,4 @@ def init_repo():
     click.echo(click.style("Update repo source successful", fg="green"))
 
 
-__all__ = "init_repo"
+__all__ = ("init_repo",)

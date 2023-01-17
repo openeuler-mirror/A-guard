@@ -61,7 +61,7 @@ class ProcessRecords:
     def __init__(self, package="", pr="") -> None:
         self._file = os.path.join(
             constant.RECORDS_COURSE,
-            package + "_" + config.arch + "_" + pr + "_buildinfo",
+            package + "_" + pr + "_" + config.arch + "_comment",
         )
         os.makedirs(constant.RECORDS_COURSE, exist_ok=True)
         self._init_progress = dict(
@@ -89,7 +89,7 @@ class ProcessRecords:
         """
         progress_index = self._progress["next_progress"].index(progress)
         self._progress["next_progress"] = self._progress["next_progress"][
-            progress_index + 1 :
+            progress_index + 1:
         ]
         self._progress["current_progress"] = progress
 

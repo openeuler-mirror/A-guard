@@ -21,7 +21,7 @@ class Gitee(Api):
     """
 
     host = "https://gitee.com/api/v5/repos"
-    pkg_info_url = "https://pkgmanage.openeuler.org/"
+    pkg_info_url = "https://www.openeuler.org/api-omapi/query/sig/info"
 
     def __init__(self, repo, owner="src-openeuler", token=None):
         super(Gitee, self).__init__()
@@ -62,9 +62,7 @@ class Gitee(Api):
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{number}"
         return self._get(url, params=self._params())
 
-    def package_committer(
-        self, package_names, gitee_branch="master", architecture="standard_aarch64"
-    ):
+    def package_committer(self, package_names, community="openeuler", search="fuzzy"):
         """
         Get maintainer information for a package
         Args:
@@ -72,28 +70,35 @@ class Gitee(Api):
         Returns:
 
         """
-        url = f"{self.pkg_info_url}/api/infoBoard/obs"
-        values = dict(gitee_branch=gitee_branch, architecture=architecture)
+
+        def parse_maintainer(content, pkg_name):
+            """
+            parse maintainer information for a package
+            Args:
+                content : maintainer information
+                pkg_name : package repository name
+             Returns:
+            """
+            pkg_info = content["data"]
+            for con in pkg_info:
+                for repo in con["repos"]:
+                    if pkg_name in repo:
+                        maintainer = con["maintainer_info"][0]
+                        commiters[pkg_name] = dict(
+                            name=maintainer.get("gitee_id"),
+                            email=maintainer.get("email"),
+                            sig=con.get("sig_name"),
+                        )
+            return commiters
+
+        values = dict(community=community, search=search)
         commiters = dict()
+        response = self._get(self.pkg_info_url, params=values)
         for package_name in package_names:
-            values.update(dict(pkg_name=package_name))
-            response = self._get(url, params=values)
-            if not response or response.get("code") != "200":
-                continue
             try:
-                pkg_info = response["resp"]["pkg_infos"][-1]
-                if not pkg_info.get("maintainer"):
-                    continue
-                maintainer = pkg_info["maintainer"][0]
+                commiters.update(parse_maintainer(response, package_name))
             except IndexError:
                 continue
-
-            commiters[package_name] = dict(
-                name=maintainer.get("id"),
-                email=maintainer.get("email"),
-                sig=pkg_info.get("sig_name"),
-            )
-
         return commiters
 
     def create_tag(self, pr_number, body):
