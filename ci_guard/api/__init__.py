@@ -52,12 +52,12 @@ class Api:
             return None
 
     @staticmethod
-    def _get(url, params=None, text=False, **kwargs):
+    def _get(url, level="warning", params=None, text=False, **kwargs):
         """
         HTTP GET request
         """
         try:
-            return Api._request(url=url, method="get", data=params, text=text, **kwargs)
+            return Api._request(level=level, url=url, method="get", data=params, text=text, **kwargs)
         except RetryError:
             logger.warning(f"Request get error: {url}")
             return None
@@ -79,7 +79,7 @@ class Api:
         stop_max_attempt_number=constant.STOP_MAX_ATTEMPT_NUMBER,
         wait_fixed=constant.WAIT_FIXED,
     )
-    def _request(url, method="get", data=None, text=False, **kwargs):
+    def _request(url, method="get", data=None, text=False, level="warning", **kwargs):
         """
         POST into gitee API
         """
@@ -101,7 +101,7 @@ class Api:
             requests.codes.no_content,
         )
         if response.status_code not in success_code:
-            logger.warning(f"reuqest url: {url} status code: {response.status_code}")
+            getattr(logger, level)(f"reuqest url: {url} status code: {response.status_code}")
             return None if response.status_code != requests.codes.not_found else False
         if response.status_code == requests.codes.no_content:
             return dict(delete="success")

@@ -41,8 +41,8 @@ function update_config(){
     echo "============ Start synchronizing jenkin environment variables ============"
     sed -i "/^gitee_token: */cgitee_token: ${GiteeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^requires_repo: */crequires_repo: ${buddy}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^build_env_account: */cbuild_env_account: ${OBSUserName}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^build_env_passwd: */cbuild_env_passwd: ${OBSPassword}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^build_env_account: */cbuild_env_account: ${OBSSecondaryUserName}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^build_env_passwd: */cbuild_env_passwd: ${OBSSecondaryPassword}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^warehouse_owner: */cwarehouse_owner: ${repo_owner}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^build_host: */cbuild_host: ${obs_webui_host}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^files_server: */cfiles_server: ${repo_server}" ${shell_path}/ci_guard/conf/config.yaml
@@ -72,7 +72,7 @@ build-root = ${BUILD_ROOT}
 [http://117.78.1.88]
 user = ${OBSUserName}
 pass = ${OBSPassword}
-trusted_prj = openEuler:22.03:LTS:LoongArch:selfbuild:BaseOS openEuler:22.03:LTS:selfbuild:BaseOS openEuler:22.03:LTS:Next:selfbuild:BaseOS openEuler:20.03:LTS:SP3:selfbuild:BaseOS openEuler:selfbuild:BaseOS openEuler:20.03:LTS:selfbuild:BaseOS openEuler:selfbuild:function openEuler:20.09:selfbuild:BaseOS openEuler:20.03:LTS:SP1:selfbuild:BaseOS openEuler:21.03:selfbuild:BaseOS openEuler:20.03:LTS:SP2:selfbuild:BaseOS openEuler:21.09:selfbuild:BaseOS openEuler:20.03:LTS:Next:selfbuild:BaseOS # 不用输0,1,2了
+trusted_prj = openEuler:22.03:LTS:SP2:selfbuild:BaseOS openEuler:22.03:LTS:SP1:selfbuild:BaseOS openEuler:Factory openEuler:Mainline openEuler:Epol openEuler:BaseTools openEuler:C openEuler:Common_Languages_Dependent_Tools openEuler:Erlang openEuler:Golang openEuler:Java openEuler:KernelSpace openEuler:Lua openEuler:Meson openEuler:MultiLanguage openEuler:Nodejs openEuler:Ocaml openEuler:Perl openEuler:Python openEuler:Qt openEuler:Ruby openEuler:selfbuild:BaseOS openEuler:22.09:selfbuild:BaseOS openEuler:22.03:LTS:LoongArch:selfbuild:BaseOS openEuler:22.03:LTS:selfbuild:BaseOS openEuler:22.03:LTS:Next:selfbuild:BaseOS openEuler:20.03:LTS:SP3:selfbuild:BaseOS openEuler:selfbuild:BaseOS openEuler:20.03:LTS:selfbuild:BaseOS openEuler:selfbuild:function openEuler:20.09:selfbuild:BaseOS openEuler:20.03:LTS:SP1:selfbuild:BaseOS openEuler:21.03:selfbuild:BaseOS openEuler:20.03:LTS:SP2:selfbuild:BaseOS openEuler:21.09:selfbuild:BaseOS openEuler:20.03:LTS:Next:selfbuild:BaseOS openEuler:23.03:selfbuild:BaseOS # 不用输0,1,2了
 EOF
     echo "Successful installed osc"
 }
@@ -89,18 +89,11 @@ function update_repo(){
 }
 
 function scp_remote_service(){
-    if [ ${build_env} == "obs" ]
-    then
-        echo "Start obs copy the check result file to the remote file server"
-        chmod 755 $WORKSPACE/records-course/${repo}_${arch}_${prid}_buildinfo
-        cat $WORKSPACE/records-course/${repo}_${arch}_${prid}_buildinfo
-        echo $fileserver_tmpfile_path
-        scp -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $WORKSPACE/records-course/${repo}_${arch}_${prid}_buildinfo root@${repo_server}:$fileserver_tmpfile_path
-    else
-        cat $WORKSPACE/records-course/${repo}_${arch}_${prid}_buildinfo
-        echo $fileserver_tmpfile_path
-        echo "ebs does not need to copy files to remote"
-    fi
+    echo "Start copy the check result file to the remote file server"
+    chmod 755 $WORKSPACE/records-course/${repo}_${prid}_${arch}_comment
+    cat $WORKSPACE/records-course/${repo}_${prid}_${arch}_comment
+    echo $fileserver_tmpfile_path
+    scp -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $WORKSPACE/records-course/${repo}_${prid}_${arch}_comment root@${repo_server}:$fileserver_tmpfile_path
 }
 
 function check_single_install(){
@@ -111,7 +104,8 @@ function check_single_install(){
         scp_remote_service
         exit 1
     fi
-    # python3 $SCRIPT_CMD comment -pr $pr 
+    scp_remote_service
+    # python3 $SCRIPT_CMD comment -pr $pr
     echo "End check single install"
 }
 
@@ -196,7 +190,6 @@ EOF
   )
     ssh -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@${repo_server} "$remote_dir_reset_cmd"
 
-    echo "save result"
     if [[ -e $result_dir/report-$old_dir-$new_dir/osv.json && "$(ls -A $old_dir | grep '.rpm')" && "$(ls -A $new_dir | grep '.rpm')" ]] && [[ ${build_env} == "obs" ]]; then
         old_any_rpm=$(ls $old_dir | head -n 1)
         old_version=$(rpm -q $old_dir/$old_any_rpm --queryformat '%{version}\n')
@@ -213,15 +206,13 @@ EOF
     if [[ -d $new_dir && "$(ls -A $new_dir | grep '.rpm')" ]] && [[ ${build_env} == "obs" ]]; then
         scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $new_dir/* root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/
     fi
-    if [[ -e $compare_result ]] && [[ ${build_env} == "obs" ]]; then
-        pwd
-        cat $compare_result
-        echo $compare_result
+    if [[ -e $compare_result ]]; then
         scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${compare_result} root@${repo_server}:$fileserver_tmpfile_path/${compare_result}
     fi
-    # if [[ -e $comment_file ]]; then
-    #     scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${comment_file} root@${repo_server}:$fileserver_tmpfile_path/${comment_file}
-    # fi
+     if [[ -e $comment_file ]]; then
+         scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${comment_file} root@${repo_server}:$fileserver_tmpfile_path/${comment_file}
+     fi
+    echo "save result"
 
     python3 ${shell_pathoe}/src/utils/oemaker_analyse.py --branch ${tbranch} --arch ${arch} \
 	--oecp_json_path "$result_dir/report-$old_dir-$new_dir/osv.json" --owner "src-openeuler" \
@@ -230,13 +221,13 @@ EOF
 
 function check_single_build(){
     echo "============ Start check single build ============"
-    
     python3 $SCRIPT_CMD build -pr $pr -tb $tbranch -a $arch
     if  [ $? -ne 0 ]; then
         echo "Single package build failed"
         scp_remote_service
         exit 1
     fi
+    scp_remote_service
     # python3 $SCRIPT_CMD comment -pr $pr 
     echo "Single package build successfully"
 }
@@ -259,16 +250,21 @@ function clean_env(){
         echo "rm -rf $WORKSPACE/pull-fetch"
         rm -rf $WORKSPACE/pull-fetch
     fi
+    if [[ -d "$WORKSPACE/lkp" ]]; then
+        echo "rm -rf $WORKSPACE/lkp"
+        rm -rf $WORKSPACE/lkp
+    fi
     cat >${WORKSPACE}/ci-tools.repo <<EOF
 EOF
     echo "========== Env clean up =========="
 }
 
 function oecp_compare(){
-    echo "========== Start to compare package diff =========="
     old_dir="${WORKSPACE}/old_rpms/"
     new_dir="${WORKSPACE}/new_rpms/"
     result_dir="${WORKSPACE}/oecp_result"
+    ci_server_dir="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/0X080480000XC0000000/${repo}/${arch}/"
+
     if [[ -d $old_dir ]]; then
         echo "rm -rf $old_dir"
         rm -rf $old_dir
@@ -288,6 +284,10 @@ function oecp_compare(){
     if [[ -d ${WORKSPACE}/rpms && "$(ls -A ${WORKSPACE}/rpms)" ]]; then
         cp ${WORKSPACE}/rpms/*.rpm $new_dir
     fi
+    
+    echo "try download rpms from ci server"
+    scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${repo_server}:$ci_server_dir/*.rpm $old_dir || echo log_info "file ${ci_server_dir} not exist"
+
 
     if [[ ! "$(ls -A $old_dir | grep '.rpm')" && "$(ls -A $new_dir | grep '.rpm')" ]]; then
         python3 $SCRIPT_CMD download -p $repo -b $tbranch -a $arch
@@ -300,9 +300,9 @@ function oecp_compare(){
     if [[ "$(ls -A $new_dir | grep '.rpm')" ]]; then
         sed -i "s/dbhost=127.0.0.1/dbhost=${MysqldbHost}/g" ${JENKINS_HOME}/oecp/oecp/conf/oecp.conf
         sed -i "s/dbport=3306/dbport=${MysqldbPort}/g" ${JENKINS_HOME}/oecp/oecp/conf/oecp.conf
-        python3 ${JENKINS_HOME}/oecp/cli.py $old_dir $new_dir -o $result_dir -w $result_dir -n 2 -f json -s $tbranch-${arch} -p ${JENKINS_HOME}/oecp/oecp/conf/plan/symbol.json --db-password ${MysqlUserPasswd:5} --pull-request-id ${repo}-${prid} || echo "continue although run oecp failed"
+        python3 ${JENKINS_HOME}/oecp/cli.py $old_dir $new_dir -o $result_dir -w $result_dir -n 2 -s $tbranch-${arch} --spec $BUILD_ROOT/home/abuild/rpmbuild/SOURCES --db-password ${MysqlUserPasswd:5} --pull-request-id ${repo}-${prid} || echo "continue although run oecp failed"
+        cat $result_dir/report-$old_dir-$new_dir/osv.json
     fi
-
 }
 
 function config_ebs(){
@@ -311,18 +311,24 @@ function config_ebs(){
         mkdir -p ~/.config/cli/defaults
     fi
     cat >> ~/.config/cli/defaults/config.yaml <<EOF
+#SRV_HTTP_REPOSITORIES_HOST: 123.249.10.3
 SRV_HTTP_REPOSITORIES_HOST: 172.16.1.108
-SRV_HTTP_REPOSITORIES_PORT: 30012
+SRV_HTTP_REPOSITORIES_PORT: 30108
 SRV_HTTP_REPOSITORIES_PROTOCOL: http://
 SRV_HTTP_RESULT_HOST: 172.16.1.108
-SRV_HTTP_RESULT_PORT: 30012
+SRV_HTTP_RESULT_PORT: 30108
 SRV_HTTP_RESULT_PROTOCOL: http://
 GATEWAY_IP: 172.16.1.108
-GATEWAY_PORT: 30012
-GITEE_ID:
-GITEE_PASSWORD: 
-EOF
+GATEWAY_PORT: 30108
+GITEE_ID: ${EBSSecondaryUserName}
+GITEE_PASSWORD: ${EBSSecondaryUserPassword}
+ACCOUNT: ${OauthAccount}
+PASSWORD: ${OauthPassword}
+OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
+OAUTH_REDIRECT_URL: http://123.249.10.3:30108/oauth/
+PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
 
+EOF
     echo "The ebs configuration is complete."
 }
 
@@ -332,7 +338,7 @@ function make_ebs_env(){
     gem sources --add https://repo.huaweicloud.com/repository/rubygems/ --remove https://rubygems.org/
     
     gem install -f git activesupport rest-client faye-websocket md5sum base64
-    git clone https://$GiteeUserName:$GiteePassword@gitee.com/openeuler-customization/lkp-tests.git $WORKSPACE/lkp
+    git clone -b ebs-master-20230703 https://$GiteeUserName:$GiteePassword@gitee.com/openeuler-customization/lkp-tests.git $WORKSPACE/lkp
     cd $WORKSPACE/lkp
     make install || echo "make install failed."
     source /etc/profile
@@ -340,26 +346,41 @@ function make_ebs_env(){
     echo "Lkp-test tools are ready."
     config_ebs
     cd $WORKSPACE
-    ccb create projects test-ci-boot
 }
 
 function main(){
-    repo_owner_judge
-    remote_dir_make
-    clean_env
-    update_config
-    if [ $build_env == 'ebs' ] ; then
-        make_ebs_env
-    else
-        config_osc
-        update_repo
+    exclusive_arch=$arch
+    support_arch_file=${repo}_${prid}_support_arch
+    scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${repo_server}:/repo/soe${repo_server_test_tail}/support_arch/${support_arch_file} . || echo "${support_arch_file}" not exist
+    ls -l .
+    if [[ -e ${support_arch_file} ]]; then
+      support_arch=`cat ${support_arch_file}`
+      if [[ $support_arch != *$arch* ]]
+      then
+        exclusive_arch=""
+      fi
     fi
-    check_single_build
-    check_single_install
-    compare_difference
-    check_multiple_build
-    check_multiple_install
-    scp_remote_service
+
+    if [[ $exclusive_arch ]]; then
+        echo "exclusive_arch not empty"
+        repo_owner_judge
+        remote_dir_make
+        clean_env
+        update_config
+        if [ $build_env == 'ebs' ] ; then
+            make_ebs_env
+        else
+            config_osc
+            update_repo
+        fi
+        check_single_build
+        check_single_install
+        compare_difference
+        # 暂不支持多包编译
+    #    check_multiple_build
+    #    check_multiple_install
+        scp_remote_service
+    fi
 }
 
 function link_pull(){

@@ -41,7 +41,6 @@ def obs_binary_rpm_download(branch, package, arch):
             cmds=["osc", "getbinaries", project, package, "standard_" + arch, arch],
             cwd=os.path.join(config.workspace, "old_rpms"),
         )
-        logger.info(f"project: {project} code: {code}")
         if not code:
             logger.info("Downloading the archive rpm package is complete")
             exit(0)
@@ -63,20 +62,27 @@ def ebs_binary_rpm_download(package, arch):
         exit(1)
     try:
         ground_projects = UnifyBuildInstallVerify.json_loads(out)
-        project = ground_projects[-1]["_source"]["ground_projects"][0]["name"]
+        projects = [ground_project["name"] for ground_project in ground_projects[-1]["_source"]["ground_projects"]]
+        logger.info(f"ground_project[name]:{projects}")
     except (ValueError, IndexError, KeyError):
         logger.error(
             f"Failed to get the repo ID of the ground project, build id: {config.build_id}"
         )
         exit(1)
-
-    cmds = f"ccb download os_project={project} packages={package} architecture={arch} -b all"
-    code, out, _ = command(
-        cmds=cmds.split(), cwd=os.path.join(config.workspace, "old_rpms")
-    )
-    logger.info(f"project: {project} code: {code}")
-    folder = os.path.join(config.workspace, "old_rpms", f"{project}-{arch}-{package}")
-    if code or not os.path.exists(folder):
+    if package == "kernel":
+        package = "kernel:kernel"
+    for project in projects:
+        cmds = f"ccb download os_project={project} packages={package} architecture={arch} -b all"
+        logger.info(f"ccb download:{cmds}")
+        code, out, _ = command(
+            cmds=cmds.split(), cwd=os.path.join(config.workspace, "old_rpms")
+        )
+        logger.info(f"ccb download code:{code}")
+        folder = os.path.join(config.workspace, "old_rpms", f"{project}-{arch}-{package}")
+        if os.path.exists(folder):
+            logger.info(f"Download the archive binary package successfully from os_project:{project}.")
+        break
+    if not os.path.exists(folder):
         logger.error("Failed to download the archive binary package.")
         exit(1)
     for rpm_file in os.listdir(folder):

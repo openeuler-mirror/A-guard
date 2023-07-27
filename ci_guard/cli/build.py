@@ -30,17 +30,22 @@ from core.build import BuildVerify
 @click.option("--multiple/--no-multiple", default=False, help="Multiple package compilation, single package compilation by default")
 @click.option("--ignore/--no-ignore", default=False, help="Whether to ignore the results of multi-package verification")
 def build(pull_request, target_branch, arch, multiple, ignore):
+    """
+    Rpm build
+    :param pull_request:  pr link to be build
+    :param target_branch: target branch of the build
+    :param arch: build architecture
+    :param multiple: single or multi-package builds
+    :param ignore: ignore build results
+    """
     click.echo("[INFO] start check build")
     choose = "multiple" if multiple else "single"
     build_obj = BuildVerify(pull_request, target_branch, arch, multiple, ignore)
-    print(pull_request, target_branch, arch, multiple)
     check_result = build_obj.build()
     if check_result.get("current_result") in ["success", "excluded"]:
-         # package build successfully
-        click.echo(click.style(f"{choose} package build successfully", fg="green"))
+        # package build successfully
+        sys.exit(0)
     else:
-        click.echo(click.style(f"{choose} package build failed", fg="red"))
         sys.exit(1)
 
-
-__all__ = "build"
+__all__ = ("build",)

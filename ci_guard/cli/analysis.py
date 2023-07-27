@@ -11,10 +11,7 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 import os.path
-import sys
-
 import click
-
 from conf import config
 from core.analysis import Analysis
 from exception import FileError
@@ -29,6 +26,10 @@ from exception import FileError
     help="Output file of the package difference comparison tool comparison results",
 )
 def diff_analysis(diff_file):
+    """
+    Differential comparative analysis
+    :param diff_file: differential file
+    """
     click.echo("[INFO] Start compare package")
     if not diff_file or not os.path.exists(diff_file):
         raise FileError(
@@ -40,6 +41,6 @@ def diff_analysis(diff_file):
         click.echo(click.style(f"Need to continue to verify,{effect_detail}", fg="red"))
     else:
         click.echo(click.style(f"No verification needed,{effect_detail}", fg="green"))
-        sys.exit(1)
+
 
 __all__ = "diff_analysis"

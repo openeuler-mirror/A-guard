@@ -275,7 +275,7 @@ class Pull:
                     SELECT * FROM link_pull WHERE link_pr=%s and link_repo=%s;"""
             link_prs = db.all(sql, [pr_number, repo, pr_number, repo])
         if not link_prs:
-            logger.info(f"There PR is no correlation relationship: {pr_number}")
+            logger.info(f"This PR is no correlation relationship: {pr_number}")
             return relations
 
         for pr_link_info in link_prs:
