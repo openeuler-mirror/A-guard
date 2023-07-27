@@ -84,16 +84,16 @@ def ebs_binary_rpm_download(package, arch):
         break
     if not os.path.exists(folder):
         logger.error("Failed to download the archive binary package.")
-        exit(1)
-    for rpm_file in os.listdir(folder):
-        if not os.path.isfile(os.path.join(folder, rpm_file)):
-            continue
-        shutil.move(
-            os.path.join(folder, rpm_file),
-            os.path.join(config.workspace, "old_rpms", rpm_file),
-        )
-    shutil.rmtree(folder)
-    logger.info("Downloading the archive rpm package is complete")
+    else:
+        for rpm_file in os.listdir(folder):
+            if not os.path.isfile(os.path.join(folder, rpm_file)):
+                continue
+            shutil.move(
+                os.path.join(folder, rpm_file),
+                os.path.join(config.workspace, "old_rpms", rpm_file),
+            )
+        shutil.rmtree(folder)
+        logger.info("Downloading the archive rpm package is complete")
 
 
 @click.command("download", help="Download binary package")

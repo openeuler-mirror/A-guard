@@ -140,11 +140,13 @@ function compare_difference(){
     oecp_compare
     abi_compare
 
-    python3 $SCRIPT_CMD analysis -df $result_dir/report-$old_dir-$new_dir/osv.json
-    if  [ $? -ne 0 ]; then
-        echo "No need to verify change impact."
-        scp_remote_service
-        exit 0
+    if [[ -e $result_dir/report-$old_dir-$new_dir/osv.json ]]; then
+        python3 $SCRIPT_CMD analysis -df $result_dir/report-$old_dir-$new_dir/osv.json
+        if [ $? -ne 0 ]; then
+            echo "No need to verify change impact."
+            scp_remote_service
+            exit 0
+        fi
     fi
     # python3 $SCRIPT_CMD comment -pr $pr 
     echo "Change impact needs to be verified."
@@ -297,7 +299,7 @@ function oecp_compare(){
         fi
     fi
 
-    if [[ "$(ls -A $new_dir | grep '.rpm')" ]]; then
+    if [[ "$(ls -A $new_dir | grep '.rpm')" && "$(ls -A $old_dir | grep '.rpm')" ]]; then
         sed -i "s/dbhost=127.0.0.1/dbhost=${MysqldbHost}/g" ${JENKINS_HOME}/oecp/oecp/conf/oecp.conf
         sed -i "s/dbport=3306/dbport=${MysqldbPort}/g" ${JENKINS_HOME}/oecp/oecp/conf/oecp.conf
         python3 ${JENKINS_HOME}/oecp/cli.py $old_dir $new_dir -o $result_dir -w $result_dir -n 2 -s $tbranch-${arch} --spec $BUILD_ROOT/home/abuild/rpmbuild/SOURCES --db-password ${MysqlUserPasswd:5} --pull-request-id ${repo}-${prid} || echo "continue although run oecp failed"
