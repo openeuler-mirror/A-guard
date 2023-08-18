@@ -307,48 +307,6 @@ function oecp_compare(){
     fi
 }
 
-function config_ebs(){
-    echo "Start config ebs env"
-    if [ ! -d ~/.config/cli/defaults ]; then
-        mkdir -p ~/.config/cli/defaults
-    fi
-    cat >> ~/.config/cli/defaults/config.yaml <<EOF
-#SRV_HTTP_REPOSITORIES_HOST: 123.249.10.3
-SRV_HTTP_REPOSITORIES_HOST: 172.16.1.108
-SRV_HTTP_REPOSITORIES_PORT: 30108
-SRV_HTTP_REPOSITORIES_PROTOCOL: http://
-SRV_HTTP_RESULT_HOST: 172.16.1.108
-SRV_HTTP_RESULT_PORT: 30108
-SRV_HTTP_RESULT_PROTOCOL: http://
-GATEWAY_IP: 172.16.1.108
-GATEWAY_PORT: 30108
-GITEE_ID: ${EBSSecondaryUserName}
-GITEE_PASSWORD: ${EBSSecondaryUserPassword}
-ACCOUNT: ${OauthAccount}
-PASSWORD: ${OauthPassword}
-OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
-OAUTH_REDIRECT_URL: http://123.249.10.3:30108/oauth/
-PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
-
-EOF
-    echo "The ebs configuration is complete."
-}
-
-function make_ebs_env(){
-    echo "Start clone lkp-tests"
-    sudo dnf install rubygems ruby hostname ruby-devel gcc-c++ -y
-    gem sources --add https://repo.huaweicloud.com/repository/rubygems/ --remove https://rubygems.org/
-    
-    gem install -f git activesupport rest-client faye-websocket md5sum base64
-    git clone -b ebs-master-20230703 https://$GiteeUserName:$GiteePassword@gitee.com/openeuler-customization/lkp-tests.git $WORKSPACE/lkp
-    cd $WORKSPACE/lkp
-    make install || echo "make install failed."
-    source /etc/profile
-    source $HOME/.${SHELL##*/}rc
-    echo "Lkp-test tools are ready."
-    config_ebs
-    cd $WORKSPACE
-}
 
 function main(){
     exclusive_arch=$arch
@@ -369,9 +327,7 @@ function main(){
         remote_dir_make
         clean_env
         update_config
-        if [ $build_env == 'ebs' ] ; then
-            make_ebs_env
-        else
+        if [ $build_env == 'obs' ] ; then
             config_osc
             update_repo
         fi
