@@ -307,6 +307,33 @@ function oecp_compare(){
     fi
 }
 
+function config_ebs(){
+    echo "Start config ebs env"
+    if [ ! -d ~/.config/cli/defaults ]; then
+        mkdir -p ~/.config/cli/defaults
+    fi
+    cat >> ~/.config/cli/defaults/config.yaml <<EOF
+#SRV_HTTP_REPOSITORIES_HOST: 123.249.10.3
+SRV_HTTP_REPOSITORIES_HOST: 172.16.1.108
+SRV_HTTP_REPOSITORIES_PORT: 30108
+SRV_HTTP_REPOSITORIES_PROTOCOL: http://
+SRV_HTTP_RESULT_HOST: 172.16.1.108
+SRV_HTTP_RESULT_PORT: 30108
+SRV_HTTP_RESULT_PROTOCOL: http://
+GATEWAY_IP: 172.16.1.108
+GATEWAY_PORT: 30108
+ACCOUNT: ${OauthAccount}
+PASSWORD: ${OauthPassword}
+OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
+OAUTH_REDIRECT_URL: http://123.249.10.3:30108/oauth/
+PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
+
+EOF
+    source /etc/profile
+    source $HOME/.${SHELL##*/}rc
+    echo "The ebs configuration is complete."
+    cat ~/.config/cli/defaults/config.yaml
+}
 
 function main(){
     exclusive_arch=$arch
@@ -327,7 +354,9 @@ function main(){
         remote_dir_make
         clean_env
         update_config
-        if [ $build_env == 'obs' ] ; then
+     	if [ $build_env == 'ebs' ] ; then
+            config_ebs
+	else
             config_osc
             update_repo
         fi
