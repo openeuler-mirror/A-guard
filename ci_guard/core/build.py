@@ -266,6 +266,7 @@ class EbsBuildVerify(BuildMeta):
             else "openEuler:22.09"
         )
         base_dict = {
+            "project_type": "ci_soe",
             "build_targets": [
                 {"os_variant": os_variant_name, "architecture": self.arch}
             ],
