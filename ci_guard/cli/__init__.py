@@ -11,6 +11,7 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 import sys
+from cli.hotpatch import hotpatch
 from cli.install import install
 from cli.build import build
 from cli.comment import notify
@@ -41,4 +42,5 @@ __all__ = (
     "pull_link",
     "download_rpm",
     "init_repo",
+    "hotpatch",
 )
