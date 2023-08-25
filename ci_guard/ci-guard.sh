@@ -325,7 +325,7 @@ GATEWAY_PORT: 30108
 ACCOUNT: ${OauthAccount}
 PASSWORD: ${OauthPassword}
 OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
-OAUTH_REDIRECT_URL: http://123.249.10.3:30108/oauth/
+OAUTH_REDIRECT_URL: http://eulermaker.compass-ci.openeuler.openatom.cn/oauth/
 PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
 
 EOF
