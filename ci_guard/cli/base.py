@@ -13,6 +13,7 @@
 from functools import update_wrapper
 import click
 from cli import (
+    verify_meta,
     hotpatch,
     build,
     diff_analysis,
@@ -67,6 +68,7 @@ class CiGroup(click.Group):
             self._add_command()
 
     def _add_command(self):
+        self.add_command(verify_meta)
         self.add_command(hotpatch)
         self.add_command(install)
         self.add_command(build)
