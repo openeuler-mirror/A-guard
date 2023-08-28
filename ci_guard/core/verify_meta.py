@@ -102,8 +102,11 @@ class VerifyHotPatchMeta:
     @staticmethod
     def get_version_release(patch_list):
         patch = patch_list.split("\n")[0].strip()
-        version = patch.split(" ")[1].split("=")[1].strip('"')
-        release = patch.split(" ")[2].split("=")[1].strip('"')
+        patch_line = patch.split(" ")
+        if len(patch_line) != 6:
+            raise RuntimeError("hotpatch line field missed")
+        version = patch_line[1].split("=")[1].strip('"')
+        release = patch_line[2].split("=")[1].strip('"')
         logger.info(f"version-release：{version}-{release}")
         return f"{version}-{release}"
 
@@ -112,10 +115,13 @@ class VerifyHotPatchMeta:
         last_ver = ""
         for patch_i in patch_list:
             patch = patch_i.split("\n")[0].strip()
-            old_name = patch.split(" ")[1].split("=")[1].strip('"')
+            patch_line = patch.split(" ")
+            if len(patch_line) != 7:
+                raise RuntimeError("hotpatch line field missed")
+            old_name = patch_line[1].split("=")[1].strip('"')
             if name == old_name:
-                version = patch.split(" ")[2].split("=")[1].strip('"')
-                release = patch.split(" ")[3].split("=")[1].strip('"')
+                version = patch_line[2].split("=")[1].strip('"')
+                release = patch_line[3].split("=")[1].strip('"')
                 last_ver = "%s-%s-%s" % (old_name.replace("-", "_"), version, release)
         return last_ver
 
@@ -138,7 +144,7 @@ class VerifyHotPatchMeta:
                     curr_version_release, last_version_release)
                 self.comment_metadata_pr(error_info)
             pre_version_release = "ACC-%s" % last_version_release
-        elif self.mode == "SGL":
+        if self.mode == "SGL":
             name, version, release = self.get_sgl_curr_version(new_patch_list[-1])
             curr_ver = "%s-%s-%s" % (name.replace("-", "_"), version, release)
             last_ver = self.get_sgl_pre_version(name, old_patch_list)
@@ -198,17 +204,17 @@ class VerifyHotPatchMeta:
             self.gitee.remove_tag(self.pull_request, "ci_processing")
             self.gitee.create_tag(self.pull_request, "ci_successful")
             logger.warning("%s only status is modify, don't need make hotpatch" % version)
-            sys.exit(1)
+            sys.exit(0)
 
     def verify_meta_field(self, version, release):
         hotpatch_dict = {}
         logger.info("start verifying meta field")
         hotpatchs = self.read_metadata_file(self.input)
-        try:
-            logger.warning(f"version: {version}, release: {release}")
-            for child in hotpatchs:
-                issue_id_list = []
-                reference_href_list = []
+        logger.warning(f"version: {version}, release: {release}")
+        for child in hotpatchs:
+            issue_id_list = []
+            reference_href_list = []
+            try:
                 logger.info(f"version: {child.attrib['version']}, release: {child.attrib['release']}")
                 if child.attrib["version"] == version and child.attrib["release"] == release:
                     cve_type = child.attrib["type"]
@@ -228,9 +234,8 @@ class VerifyHotPatchMeta:
                             error_info = f"热补丁name字段与issue id字段不匹配，当前为：{name}， 应该为：{ver_name}"
                             self.comment_metadata_pr(error_info)
                         hotpatch_dict["patch_name"] = name
-                    else:
+                    if self.mode == "ACC":
                         hotpatch_dict["patch_name"] = "ACC"
-
                     src_url = child.find('SRC_RPM').text
                     x86_debug = child.find('Debug_RPM_X86_64').text
                     aarch64_debug = child.find('Debug_RPM_Aarch64').text
@@ -242,11 +247,11 @@ class VerifyHotPatchMeta:
                     hotpatch_dict["hotpatch_issue"] = hotpatch_issue
                     hotpatch_dict["issue_id"] = issue_id_list
                     hotpatch_dict["reference_href"] = reference_href_list
-            return hotpatch_dict
-        except KeyError as error:
-            raise RuntimeError(f"get matedata keyerror: {error}")
-        except Exception as error:
-            raise RuntimeError(f"get matedata error: {error}")
+            except KeyError as error:
+                raise RuntimeError(f"get matedata keyerror: {error}")
+            except Exception as error:
+                raise RuntimeError(f"get matedata error: {error}")
+        return hotpatch_dict
 
     def check_hotpatch_issue(self, hotpatch_issue):
         hotpatch_issue_resp = self.gitee.get_issue(hotpatch_issue.split("/")[-1])
@@ -305,7 +310,7 @@ class VerifyHotPatchMeta:
                 if self.mode == "ACC":
                     version_release = self.get_version_release(old_patch_list[i])
                     version_release = "ACC-" + version_release
-                elif self.mode == "SGL":
+                if self.mode == "SGL":
                     name, version, release = self.get_sgl_curr_version(new_patch_list[-1])
                     version_release = "%s-%s-%s" % (name.replace("-", "_"), version, release)
 
@@ -345,8 +350,8 @@ class VerifyHotPatchMeta:
 
     def comment_metadata_pr(self, err_info):
         body_str = "热补丁制作流程已中止，错误信息：%s" % err_info
-        self.gitee.create_pr_comment(self.pull_request, body_str)
         logger.error(err_info)
+        self.gitee.create_pr_comment(self.pull_request, body_str)
         self.gitee.remove_tag(self.pull_request, "ci_processing")
         self.gitee.create_tag(self.pull_request, "ci_failed")
         sys.exit(1)
