@@ -10,22 +10,22 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-import itertools
-import yaml
+
+
 import time
 import uuid
-import datetime
 import json
+
+from constant import STOP_MAX_ATTEMPT_NUMBER
 from logger import logger
 from pathlib import Path
-from conf import config
 from command import command
-from contextlib import contextmanager
 from json import JSONDecodeError
 from retrying import retry
+from contextlib import contextmanager
 
-from constant import OS_VARIANR_MAP
-from core import ProcessRecords
+from conf import config
+from api.gitee import Gitee
 
 
 class MakeHotPatchProject:
@@ -45,6 +45,7 @@ class MakeHotPatchProject:
         self.issue_title = issue_title
         self.issue_date = issue_date
         self.hotpatch_repo = repo
+        self.gitee = Gitee(config.repo, owner=config.warehouse_owner)
 
     @property
     def test_project_name(self):
@@ -128,6 +129,26 @@ class MakeHotPatchProject:
             )
         return response
 
+    @contextmanager
+    def update_package_operation(self, data, cmds, file_path):
+        """
+        Using the context mechanism, write the data to the json file,
+        execute the command, and finally delete the file
+        Args:
+            data: After the combined data, you need to write to the json file
+            cmds: The ccb command that needs to be executed
+            file_path: The json file path
+        """
+        with open(file_path, "w", encoding="utf-8") as file:
+            json.dump(data, file, indent=4)
+        try:
+            yield self._command_result(cmds)
+        except TypeError as error:
+            raise RuntimeError(f"{cmds} command execution failure,because {error}")
+        finally:
+            if Path(file_path).is_file():
+                Path(file_path).unlink()
+
     def trigger_build(self):
         """
         Trigger the compilation of single or all software under the project
@@ -142,8 +163,7 @@ class MakeHotPatchProject:
         output = self._command_result(base_trigger_build_cmds)
 
         data = output.get("data")
-        logger.info(data)
-        if not data and isinstance(data, dict):
+        if data and isinstance(data, dict):
             for build_id, build_detail in data.items():
                 os_variant = build_detail.get("os_variant")
                 arch = build_detail.get("architecture")
@@ -179,7 +199,7 @@ class MakeHotPatchProject:
             },
             "hotpatch_config": {
                 "package_repo": self.hotpatch_repo,
-                "exrta_build_dep": ["syscare-komd", "syscare", "syscare-build", "aops-apollo-tool"],
+                "exrta_build_dep": ["syscare-build-ebpf", "syscare-build", "aops-apollo-tool"],
                 "history_jobs": {
                     "aarch64": self.aarch_job_id,
                     "x86_64": self.x86_job_id
@@ -278,6 +298,78 @@ class MakeHotPatchProject:
         logger.info("make hotpatch completed")
         return build_detail_dict
 
+    @staticmethod
+    def get_repos(repo_ids):
+        repos_dict = {}
+        for arch in repo_ids:
+            repo_id = repo_ids.get("arch")
+            cmds = f"ccb select rpm_repos repo_id={repo_id} architecture={arch} -f rpm_repo_path"
+            code, cmd_out, error = command(cmds=cmds.split(), console=False)
+            if code and not cmd_out:
+                logger.error(
+                    f"Failed to get the project repo source,command: {cmds} error: {error}"
+                )
+                raise ValueError()
+            repo = json.loads(cmd_out)
+            repos_dict[arch] = repo[0]["_source"]["rpm_repo_path"]
+        return repos_dict
+
+    @staticmethod
+    def get_repo_id(build_ids):
+        repo_id_dict = {}
+        for arch, detail in build_ids.items():
+            build_id = detail.get("build_id")
+            cmds = f"ccb select builds build_id={build_id} -f repo_id"
+            logger.info(cmds)
+            code, out, error = command(cmds=cmds.split(), console=False)
+            if code and not out:
+                logger.error(f"Failed to get the repo id,command: {cmds} error: {error}.")
+                raise ValueError()
+            build = json.loads(out)
+            try:
+                project_repo_id = build[0]["_source"]["repo_id"]
+            except (KeyError, IndexError):
+                raise ValueError()
+            repo_id_dict[arch] = project_repo_id
+        return repo_id_dict
+
+    def comment_tag(self, build_details):
+        result_list = [0 if build_details.get(arch).get("result") == "success" else 1 for arch in build_details]
+        if sum(result_list) == 0:
+            self.gitee.remove_tag(self.pull_request, "ci_failed")
+            self.gitee.create_tag(self.pull_request, "ci_successful")
+        else:
+            self.gitee.remove_tag(self.pull_request, "ci_successful")
+            self.gitee.create_tag(self.pull_request, "ci_failed")
+
+    @retry(retry_on_result=lambda result: result is False,
+           stop_max_attempt_number=STOP_MAX_ATTEMPT_NUMBER,
+           )
+    def comment_to_pr(self, comment):
+        response = self.gitee.create_pr_comment(self.pull_request, "\n".join(comment))
+        if not response:
+            logger.error(f"Failed to comment content to {self.pull_request}")
+            return False
+        return True
+
+    def comment_hotpatch_result(self, build_detail_dict, repo_urls):
+        comments = ["<table><tr><th>Arch name</th> <th>Result</th><th>Download link</th> </tr>"]
+        for arch in ["aarch64", "x86_64"]:
+            result = build_detail_dict.get(arch).get("result")
+            build_url = repo_urls.get(arch).get("result")
+            if result == "success":
+                comments.append("<tr><td>{}</td> <td>{}<strong>{}</strong></td> <td><a href={}>#{}</a></td>".format(
+                    arch, ":white_check_mark:", result.upper(), build_url, build_url))
+            else:
+                comments.append("<tr><td>{}</td> <td>{}<strong>{}</strong></td> <td>{}</td>".format(
+                    arch, ":x:", result.upper(), ""))
+
+            comments.append("</table>")
+        self.comment_to_pr(comments)
+        self.comment_tag(build_detail_dict)
+
+        return comments
+
     def build_patch(self):
         """
         Single-package build process
@@ -303,6 +395,17 @@ class MakeHotPatchProject:
         logger.info("*************** check hotpatch task status ***************")
         build_detail_dict = self.query_build_project_result(build_id_dict)
         logger.info("build_detail = %s", build_detail_dict)
+
+        # 5. get build result rpm
+        logger.info("*************** get hotpatch task repo_id ***************")
+        repo_ids = self.get_repo_id(build_id_dict)
+        logger.info("*************** get hotpatch task repo url ***************")
+        repo_urls = self.get_repos(repo_ids)
+
+        # 6. comment result to pr
+        logger.info("*************** comment result to hotpatch_meta pr ***************")
+        self.comment_hotpatch_result(build_detail_dict, repo_urls)
+
 
     def build(self):
         """
