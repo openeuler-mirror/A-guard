@@ -3,7 +3,6 @@ COMMAND=$1
 JENKINS_HOME=/home/jenkins
 SCRIPT_CMD=${shell_path}/ci_guard/ci.py
 
-
 function update_config(){
     echo "============ Start synchronizing jenkin environment variables ============"
     sed -i "/^gitee_token: */cgitee_token: ${GiteeToken}" ${shell_path}/ci_guard/conf/config.yaml
@@ -14,6 +13,7 @@ function update_config(){
     sed -i "/^ebs_server: */cebs_server: ${ebs_server}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^warehouse_owner: */cwarehouse_owner: ${giteeTargetNamespace}" ${shell_path}/ci_guard/conf/config.yaml
     echo "End of synchronous config"
+    cat ${shell_path}/ci_guard/conf/config.yaml
 }
 
 function clean_env(){
@@ -31,7 +31,6 @@ function config_ebs(){
         mkdir -p ~/.config/cli/defaults
     fi
     cat >> ~/.config/cli/defaults/config.yaml <<EOF
-#SRV_HTTP_REPOSITORIES_HOST: 123.249.10.3
 SRV_HTTP_REPOSITORIES_HOST: 172.16.1.108
 SRV_HTTP_REPOSITORIES_PORT: 30108
 SRV_HTTP_REPOSITORIES_PROTOCOL: http://
@@ -43,7 +42,7 @@ GATEWAY_PORT: 30108
 ACCOUNT: ${OauthAccount}
 PASSWORD: ${OauthPassword}
 OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
-OAUTH_REDIRECT_URL: http://123.249.10.3:30108/oauth/
+OAUTH_REDIRECT_URL: http://eulermaker.compass-ci.openeuler.openatom.cn/oauth/
 PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
 
 EOF
@@ -64,9 +63,12 @@ function make_hotpatch(){
 }
 
 function get_pr_commit(){
-    log_info "***********get pr commit**********"
+    echo "***********get pr commit**********"
     git clone https://gitee.com/openeuler/hotpatch_meta ${metadata_path}/
+    ls -l hotpatch_meta
+    pwd
     cd ${metadata_path}
+    ls -l ${metadata_path}
 
     if [[ ${giteePullRequestIid} ]]; then
         git fetch origin pull/$giteePullRequestIid/head:pr_$giteePullRequestIid
@@ -85,12 +87,13 @@ function get_pr_commit(){
     echo ${hotmetadata_xml}
     tbranch=`echo $hotmetadata_path | awk -F '/' '{print $1}'`
     repo=`echo $hotmetadata_path | awk -F '/' '{print $2}'`
+
     cd $WORKSPACE
 }
 
 function check_whether_multiple_packages(){
     echo "**********check whether multiple packages********"
-    patch_list=`git diff --name-status HEAD~1 HEAD~0 | grep ".patch" |awk -F ' ' '{print $2}'`
+    patch_list=`git diff --name-status HEAD~1 HEAD~0 | grep "\.patch" |awk -F ' ' '{print $2}'`
 
     echo ${hotmetadata_path}
     echo ${patch_list}
@@ -125,7 +128,7 @@ function check_whether_multiple_packages(){
                 repo_path_tmp=${patch%/*}
                 echo $repo_path_tmp
                 if [[ $repo_path_patch != $repo_path_tmp ]]; then
-                    comment_error_src_pr "不支持多个包同时制作热补丁"
+                    comment_error_src_pr "有多个补丁文件并且路径不同"
                 fi
             done
         else
@@ -137,7 +140,7 @@ function check_whether_multiple_packages(){
     # patch包需要和hotmetadata.xml包版本保持一致，否则认为是多个软件包同时制作热补丁
     if [[ $repo_path_metadata && $repo_path_patch ]]; then
         if [[ $repo_path_patch != $repo_path_metadata/patch ]]; then
-            comment_error_src_pr "不支持多个包同时制作热补丁"
+            comment_error_src_pr "补丁文件和元数据文件路径不同"
         fi
     fi
 
@@ -159,8 +162,10 @@ function check_whether_multiple_packages(){
 
     if [[ `echo ${hotmetadata_path} | grep "ACC"` ]]; then
         mode="ACC"
-    else
+    elif [[  `echo ${hotmetadata_path} | grep "SGL"` ]];then
         mode="SGL"
+    else
+        comment_error_src_pr "元数据文件名包含不支持的补丁演进方式，目前支持的演进方式为ACC/SGL"
     fi
 
     hotmetadata_xml=${metadata_path}/${hotmetadata_path}
@@ -188,7 +193,7 @@ function get_hotpatch_issue(){
     issue_date=`cat ${update_info_file} | grep issued-date: | sed 's/^.*issued-date: //g'`
 }
 
-function print_job(){
+function comment_job_info(){
     job_name=`echo $JOB_NAME|sed -e 's#/#/job/#g'`
     job_path="https://openeulerjenkins.osinfra.cn/job/${job_name}/$BUILD_ID/console"
     body_str="热补丁构建入口：<a href=${job_path}>multiarch/src-openeuler/syscare-patch/hotpatch_meta_ebs</a>，当前构建号为 $BUILD_ID"
@@ -235,7 +240,7 @@ function comment_error_src_pr(){
 
 function verify_meta() {
     # 打印当前工程链接
-     print_job
+    comment_job_info
 
     # 检查是否一次制作多个包的热补丁
     check_whether_multiple_packages
@@ -250,7 +255,7 @@ function verify_meta() {
 }
 
 function make_patch(){
-    metadata_path=$WORKSPACE/hotpatch_meta
+    metadata_path=$WORKSPACE/hotpatch_meta/
     update_info_file=${WORKSPACE}/update_info
     # 清理环境
     clean_env
@@ -271,4 +276,12 @@ function make_patch(){
     make_hotpatch
 }
 
-main
+
+case $COMMAND in
+make_hotpatch)
+    make_patch
+    ;;
+*)
+    echo 'Command Error'
+    ;;
+esac

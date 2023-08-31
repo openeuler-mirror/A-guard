@@ -15,7 +15,9 @@
 import re
 import sys
 import os
-import xml.etree.ElementTree as ET
+import xmltodict
+
+from compare_version import CompareVersion
 from logger import logger
 
 from conf import config
@@ -47,241 +49,167 @@ class VerifyHotPatchMeta:
         self.mode = mode
         self.gitee = Gitee(config.repo, owner=config.warehouse_owner)
 
-    @staticmethod
-    def read_metadata_file(metadata_file):
-        try:
-            tree = ET.parse(metadata_file)
-            root = tree.getroot()
-            hotpatch = root.iter('hotpatch')
-            return hotpatch
-        except IOError:
-            raise RuntimeError("read matedata file error")
-        except KeyError:
-            raise RuntimeError("get matedata key:hotpatch error")
+    def parse_from_meta_file(self, meta_file):
+        meta_info = []
+        hotpatchs = []
+        with open(meta_file, "r", encoding="utf-8", ) as f:
+            d = xmltodict.parse(f.read(), process_namespaces="ns0")
+            hotpatchdoc_url = "https://gitee.com/openeuler/HotPatch_metadata:hotpatchdoc"
+            hotpatch_result = d.get(hotpatchdoc_url, {}).get("HotPatchList", {}).get("Package", {}).get("hotpatch", [])
+            logger.info(hotpatch_result)
+            if hotpatch_result and isinstance(hotpatch_result, dict):
+                hotpatchs.append(hotpatch_result)
+            else:
+                hotpatchs = hotpatch_result
+            for hotpatch in hotpatchs:
+                if not hotpatch:
+                    break
+                try:
+                    tmp = dict()
+                    if self.mode == "SGL":
+                        tmp["name"] = hotpatch["@name"]
+                    tmp["version"] = hotpatch["@version"]
+                    tmp["release"] = hotpatch["@release"]
+                    tmp["type"] = hotpatch["@type"]
+                    tmp["inherit"] = hotpatch["@inherit"]
+                    tmp["status"] = hotpatch["@status"]
+                    tmp["SRC_RPM"] = hotpatch["SRC_RPM"]
+                    tmp["Debug_RPM_X86_64"] = hotpatch["Debug_RPM_X86_64"]
+                    tmp["Debug_RPM_Aarch64"] = hotpatch["Debug_RPM_Aarch64"]
+                    tmp["hotpatch_issue"] = hotpatch["hotpatch_issue_link"]
+                    tmp["patch"] = hotpatch["patch"]
+                    tmp["issue"] = hotpatch["issue"]
+                    meta_info.append(tmp)
+                except KeyError as error:
+                    raise RuntimeError(f"get matedata keyerror: {error}")
+        return meta_info
 
-    @staticmethod
-    def get_patch_list(hotpatch):
-        patch_list = []
-        version = 0
-        release = 0
-        for child in hotpatch:
-            patch_list.clear()
-            version = child.attrib["version"]
-            release = child.attrib["release"]
-            patch = child.findall('patch')
-            for patch_name in patch:
-                patch_list.append(patch_name.text)
-        logger.info("version:%s, release:%s, patch_list:%s", version, release, patch_list)
-        return version, release, patch_list
+    def get_version_release(self, meta_info):
+        name = meta_info.get("name")
+        version = meta_info.get("version")
+        release = meta_info.get("release")
+        if self.mode == "SGL":
+            ver = "%s-%s-%s" % (name.replace("-", "_"), version, release)
+        else:
+            ver = "%s-%s-%s" % ("ACC", version, release)
+        logger.info(f"version-release：{ver}")
+        return ver
 
-    @staticmethod
-    def get_version_list(metadata):
-        patch_list = []
-        patch = []
-        try:
-            with open(metadata, "r") as file:
-                lines = file.readlines()
-                package = lines[4].strip()
-                patch_list.append(package)
-                for line in lines[5:-3]:
-                    line = line.strip()
-                    if line.startswith("<hotpatch "):
-                        patch.clear()
-                        patch.append(line)
-                    elif line.startswith("</hotpatch>"):
-                        patch.append(line.strip())
-                        patch_list.append("\n".join(patch))
-                    else:
-                        patch.append(line)
-        except IOError:
-            raise RuntimeError("read matedata file error")
-        except IndexError:
-            raise RuntimeError("matedata file format error")
-        return patch_list
-
-    @staticmethod
-    def get_version_release(patch_list):
-        patch = patch_list.split("\n")[0].strip()
-        patch_line = patch.split(" ")
-        if len(patch_line) != 6:
-            raise RuntimeError("hotpatch line field missed")
-        version = patch_line[1].split("=")[1].strip('"')
-        release = patch_line[2].split("=")[1].strip('"')
-        logger.info(f"version-release：{version}-{release}")
-        return f"{version}-{release}"
-
-    @staticmethod
-    def get_sgl_pre_version(name, patch_list):
-        last_ver = ""
-        for patch_i in patch_list:
-            patch = patch_i.split("\n")[0].strip()
-            patch_line = patch.split(" ")
-            if len(patch_line) != 7:
-                raise RuntimeError("hotpatch line field missed")
-            old_name = patch_line[1].split("=")[1].strip('"')
-            if name == old_name:
-                version = patch_line[2].split("=")[1].strip('"')
-                release = patch_line[3].split("=")[1].strip('"')
-                last_ver = "%s-%s-%s" % (old_name.replace("-", "_"), version, release)
-        return last_ver
-
-    @staticmethod
-    def get_sgl_curr_version(patch_list):
-        patch = patch_list.split("\n")[0].strip()
-        name = patch.split(" ")[1].split("=")[1].strip('"')
-        version = patch.split(" ")[2].split("=")[1].strip('"')
-        release = patch.split(" ")[3].split("=")[1].strip('"')
-        logger.warning("name:%s, version:%s, release:%s", name, version, release)
-        return name, version, release
-
-    def check_version(self, old_patch_list, new_patch_list):
-        pre_version_release = ""
+    def check_version(self, old_meta_info, new_meta_info):
         if self.mode == "ACC":
-            last_version_release = self.get_version_release(old_patch_list[-1])
-            curr_version_release = self.get_version_release(new_patch_list[-1])
-            if curr_version_release <= last_version_release:
+            last_version_release = self.get_version_release(old_meta_info)
+            curr_version_release = self.get_version_release(new_meta_info)
+            if CompareVersion.vr_compare(curr_version_release, "LE", last_version_release):
                 error_info = "新热补丁版本号%s小于已有热补丁%s，请重新指定热补丁版本和release" % (
                     curr_version_release, last_version_release)
-                self.comment_metadata_pr(error_info)
-            pre_version_release = "ACC-%s" % last_version_release
-        if self.mode == "SGL":
-            name, version, release = self.get_sgl_curr_version(new_patch_list[-1])
-            curr_ver = "%s-%s-%s" % (name.replace("-", "_"), version, release)
-            last_ver = self.get_sgl_pre_version(name, old_patch_list)
-            if curr_ver <= last_ver:
+                return self.comment_metadata_pr(error_info)
+        elif self.mode == "SGL":
+            last_version_release = self.get_version_release(old_meta_info)
+            curr_version_release = self.get_version_release(new_meta_info)
+            if CompareVersion.vr_compare(curr_version_release, "LE", last_version_release):
                 error_info = "新热补丁版本号%s小于已有热补丁%s，请重新指定热补丁版本和release" % (
-                    curr_ver, last_ver)
-                self.comment_metadata_pr(error_info)
-            pre_version_release = last_ver
-        logger.info("pre_version_release:%s", pre_version_release)
-        with open(self.output, "a") as file:
-            file.write("pre_version_release:%s\n" % pre_version_release)
-        return pre_version_release
-
-    def check_if_status_modify(self, version, old_field, new_field):
-        # 检查status字段是否有变更
-        old_field = old_field.strip().strip("<").strip(">").split()
-        new_field = new_field.strip().strip("<").strip(">").split()
-
-        old_status = old_field[-1].split("=")[-1].strip('"')
-        new_status = new_field[-1].split("=")[-1].strip('"')
-
-        # 检查status行字段数是否有变化
-        if len(old_field) != len(new_field):
-            if old_status == "confirmed":
-                self.comment_metadata_pr("热补丁版本号%s已经confirmed, 如果需要更改的话请联系sig maintianer" % version)
+                    curr_version_release, last_version_release)
+                return self.comment_metadata_pr(error_info)
         else:
-            for i in range(len(old_field)):
-                if old_field[i] != new_field[i]:
-                    if old_status == "confirmed":
-                        self.comment_metadata_pr("热补丁版本号%s已经confirmed, 如果需要更改的话请联系sig maintianer" % version)
+            return self.comment_metadata_pr("不支持的补丁演进方式，目前支持的演进方式为ACC/SGL")
+        logger.info("pre_version_release:%s", last_version_release)
+        with open(self.output, "a") as file:
+            file.write("pre_version_release:%s\n" % last_version_release)
+        return 0
 
-        return old_status, new_status
-
-    def check_modify_field(self, version, old_patch, new_patch):
+    def check_modify_field(self, version, old_meta_info, new_meta_info):
+        # -1 异常场景 0 没有变更 1 其它字段有变更 2 只有status
+        modify_flag = 0
         patch_file = []
         if self.patch_list != "null":
             patch_file = list(map(lambda x: x.split("/")[-1], self.patch_list.split()))
         logger.info("patch_file_list:%s", patch_file)
 
-        # 检查同一个version下的字段变更
-        old_patch = old_patch.split("\n")
-        new_patch = new_patch.split("\n")
-        old_status, new_status = self.check_if_status_modify(version, old_patch[0], new_patch[0])
+        # 检查字段是否有变更
+        old_status = old_meta_info.get("status")
+        new_status = new_meta_info.get("status")
 
-        for i in range(1, len(old_patch)):
-            field_name = old_patch[i].split(">")[0].split("<")[1]
-            if old_status == "confirmed":
-                if old_patch[i] != new_patch[i]:
-                    self.comment_metadata_pr("热补丁版本号%s已经confirmed, 如果需要更改的话请联系sig maintianer" % version)
-                if field_name.lower() == "patch":
-                    patch_name = old_patch[i].split(">")[1].split("<")[0]
-                    logger.warning("patch_name:%s", patch_name)
-                    if patch_name in patch_file:
-                        self.comment_metadata_pr("热补丁版本号%s已经confirmed, 如果需要更改的话请联系sig maintianer" % version)
+        for key, value in old_meta_info.items():
+            if new_meta_info.get(key) != value:
+                modify_flag = 1
+                if old_status == "confirmed":
+                    error_info = "热补丁版本号%s已经confirmed, 如果需要更改的话请联系sig maintianer" % version
+                    return self.comment_metadata_pr(error_info)
 
+        # 检查本次pr变更的patch文件是否合法，如果已经confirmed，patch文件不允许更改
+        patch_name = old_meta_info.get("patch")
+        for patch in patch_file:
+            if patch in patch_name:
+                modify_flag = 1
+                if old_status == "confirmed":
+                    error_info = "热补丁版本号%s已经confirmed, 如果需要更改的话请联系sig maintianer" % version
+                    return self.comment_metadata_pr(error_info)
+
+        # 如果只有status的变更，不用制作热补丁，直接成功
         if old_status == "unconfirmed" and new_status == "confirmed":
-            self.gitee.remove_tag(self.pull_request, "ci_processing")
-            self.gitee.create_tag(self.pull_request, "ci_successful")
             logger.warning("%s only status is modify, don't need make hotpatch" % version)
-            sys.exit(0)
+            modify_flag = 2
 
-    def verify_meta_field(self, version, release):
-        hotpatch_dict = {}
-        logger.info("start verifying meta field")
-        hotpatchs = self.read_metadata_file(self.input)
-        logger.warning(f"version: {version}, release: {release}")
-        for child in hotpatchs:
-            issue_id_list = []
-            reference_href_list = []
-            try:
-                logger.info(f"version: {child.attrib['version']}, release: {child.attrib['release']}")
-                if child.attrib["version"] == version and child.attrib["release"] == release:
-                    cve_type = child.attrib["type"]
-                    if cve_type not in type_dict.keys():
-                        error_info = f"修复的问题类型{cve_type}不是支持的类型，可选类型[cve/bugfix/feature]，请重新指定"
-                        self.comment_metadata_pr(error_info)
+        return modify_flag
 
-                    issue_list = child.findall('issue')
-                    for issue in issue_list:
-                        issue_id_list.append(issue.attrib["id"])
-                        reference_href_list.append(issue.attrib["issue_href"])
+    def verify_sgl_name(self, curr_meta_info):
+        issue_id_list = []
+        issue_list = curr_meta_info.get('issue')
+        try:
+            for issue in issue_list:
+                issue_id_list.append(issue.get["@id"])
+            curr_name = curr_meta_info.get["name"]
+            need_name = "SGL-%s" % ("-".join(issue_id_list))
+            if curr_name != need_name:
+                error_info = f"热补丁name字段与issue id字段不匹配，当前为：{curr_name}， 应该为：{need_name}"
+                return self.comment_metadata_pr(error_info)
+        except KeyError as error:
+            logger.error(f"get matedata keyerror: {error}")
+            return -1
 
-                    if self.mode == "SGL":
-                        name = child.attrib["name"]
-                        ver_name = "SGL-%s" % ("-".join(issue_id_list))
-                        if name != ver_name:
-                            error_info = f"热补丁name字段与issue id字段不匹配，当前为：{name}， 应该为：{ver_name}"
-                            self.comment_metadata_pr(error_info)
-                        hotpatch_dict["patch_name"] = name
-                    if self.mode == "ACC":
-                        hotpatch_dict["patch_name"] = "ACC"
-                    src_url = child.find('SRC_RPM').text
-                    x86_debug = child.find('Debug_RPM_X86_64').text
-                    aarch64_debug = child.find('Debug_RPM_Aarch64').text
-                    hotpatch_issue = child.find('hotpatch_issue_link').text
-                    logger.info(f"verify meta field success.\ntype:{cve_type}\nissue id:{' '.join(issue_id_list)}\n"
-                                f"SRC_RPM:{src_url}\nDebug_RPM_X86_64:{x86_debug}\nDebug_RPM_Aarch64:{aarch64_debug}\n"
-                                f"issue_href:{' '.join(reference_href_list)}\nhotpatch_issue:{hotpatch_issue} \n")
-                    hotpatch_dict["cve_type"] = cve_type
-                    hotpatch_dict["hotpatch_issue"] = hotpatch_issue
-                    hotpatch_dict["issue_id"] = issue_id_list
-                    hotpatch_dict["reference_href"] = reference_href_list
-            except KeyError as error:
-                raise RuntimeError(f"get matedata keyerror: {error}")
-            except Exception as error:
-                raise RuntimeError(f"get matedata error: {error}")
-        return hotpatch_dict
+    def verify_meta_field(self, meta_info):
+        curr_meta_info = meta_info[-1]
+        # 检查cve类型合法性
+        cve_type = curr_meta_info.get("type")
+        if cve_type not in type_dict.keys():
+            error_info = f"修复的问题类型{cve_type}不是支持的类型，可选类型[cve/bugfix/feature]，请重新指定"
+            return self.comment_metadata_pr(error_info)
+
+        # 热补丁issue检查, 获取issue标题和创建时间
+        hotpatch_issue = curr_meta_info.get("hotpatch_issue")
+        result = self.check_hotpatch_issue(hotpatch_issue)
+        if result < 0:
+            return -1
+
+        # 检查SGL模式name字段合法性
+        if self.mode == "SGL":
+            return self.verify_sgl_name(curr_meta_info)
+        return 0
 
     def check_hotpatch_issue(self, hotpatch_issue):
         hotpatch_issue_resp = self.gitee.get_issue(hotpatch_issue.split("/")[-1])
         logger.warning(hotpatch_issue_resp)
         if not hotpatch_issue_resp:
-            self.comment_metadata_pr("获取热补丁issue失败")
+            return self.comment_metadata_pr("获取热补丁issue失败")
 
         state = hotpatch_issue_resp.get("state")
         if state in ["closed", "rejected"]:
-            self.comment_metadata_pr("请确认热补丁issue未处于已完成/已关闭状态")
+            return self.comment_metadata_pr("请确认热补丁issue未处于已完成/已关闭状态")
         issue_title = hotpatch_issue_resp.get("title")
         reference_date = hotpatch_issue_resp.get("created_at")
-        logger.warning("issue_title: %s" % issue_title)
-        logger.warning("reference_date: %s" % reference_date)
         dates = re.findall(date_pattern, reference_date)
         issue_date = dates[0]
         with open(self.output, "w") as file:
             file.write("issue_title: %s\n" % issue_title)
             file.write("issued-date: %s\n" % issue_date)
+        return 0
 
-    def compare_modify_version(self):
+    def compare_modify_version(self, meta_info):
         # 比较xml中两个相同版本
-        modify_list = []
-        old_patch_list = []
-        new_patch_list = []
+        changed_version_list = []
+        only_status_changed = []
+        old_meta_info = []
         work_dir = os.getcwd()
-
-        # 获取本次提交的元数据信息
-        if os.path.exists(self.input):
-            new_patch_list = self.get_version_list(self.input)
 
         # 获取本次提交之前的元数据信息
         os.chdir(os.path.join(work_dir, "hotpatch_meta"))
@@ -290,63 +218,61 @@ class VerifyHotPatchMeta:
         if ret:
             raise RuntimeError(f"git checkout master failed, {ret}")
         if os.path.exists(self.input):
-            old_patch_list = self.get_version_list(self.input)
+            old_meta_info = self.parse_from_meta_file(self.input)
 
         # 比较新旧元数据文件的变更
-        if old_patch_list and new_patch_list:
-            # 判断Package name字段是否有变更
-            if old_patch_list[0] != new_patch_list[0]:
-                error_info = "元数据文件中package name字段有变更，请确认"
-                self.comment_metadata_pr(error_info)
-            old_patch_list = old_patch_list[1:]
-            new_patch_list = new_patch_list[1:]
-
-            # 判断新增热补丁的版本是否大于上个版本
-            if len(old_patch_list) != len(new_patch_list):
-                self.check_version(old_patch_list, new_patch_list)
-
+        new_meta_info = meta_info
+        if old_meta_info and new_meta_info:
+            # 检查版本号合法性，判断新增热补丁的版本是否大于上个版本
+            if len(old_meta_info) != len(new_meta_info):
+                result = self.check_version(old_meta_info[-1], new_meta_info[-1])
+                if result < 0:
+                    return -1
             # 判断其它patch字段是否有变更
-            for i in range(len(old_patch_list)):
-                if self.mode == "ACC":
-                    version_release = self.get_version_release(old_patch_list[i])
-                    version_release = "ACC-" + version_release
-                if self.mode == "SGL":
-                    name, version, release = self.get_sgl_curr_version(new_patch_list[-1])
-                    version_release = "%s-%s-%s" % (name.replace("-", "_"), version, release)
-
-                self.check_modify_field(version_release, old_patch_list[i], new_patch_list[i])
-                if old_patch_list[i] != new_patch_list[i]:
+            for i in range(len(old_meta_info)):
+                version_release = self.get_version_release(old_meta_info[i])
+                result = self.check_modify_field(version_release, old_meta_info[i], new_meta_info[i])
+                # -1 异常场景 0 没有变更 1 其它字段有变更 2 只有status
+                if result == 0:
+                    continue
+                elif result == 1:
                     logger.warning("version %s is modify", version_release)
-                    modify_list.append(version_release)
+                    changed_version_list.append(version_release)
+                elif result == 2:
+                    only_status_changed.append(version_release)
+                else:
+                    return -1
 
-        # 变更的patch字段是否发布，已发布的不允许修改
-        if modify_list:
-            logger.info("modify_list = %s", modify_list)
+        if changed_version_list:
+            logger.info("modify_list = %s", changed_version_list)
             with open(self.output, "a") as file:
-                file.write("modify_version:%s\n" % " ".join(modify_list))
+                file.write("modify_version:%s\n" % " ".join(changed_version_list))
+        else:
+            if only_status_changed:
+                self.gitee.remove_tag(self.pull_request, "ci_processing")
+                self.gitee.create_tag(self.pull_request, "ci_successful")
+                logger.warning("only status is modify, don't need make hotpatch")
 
         checkout_cmd = ["git", "checkout", f"pr_{self.pull_request}"]
         ret, out, _ = command(checkout_cmd)
         if ret:
-            raise RuntimeError(f"git checkout pr_{self.pull_request} failed, {ret}")
+            logger.error(f"git checkout pr_{self.pull_request} failed, {ret}")
+            return -1
         os.chdir(work_dir)
+        return 0
 
     def get_update_info(self):
         # 读取xml中的hotpatch字段
-        hotpatchs = self.read_metadata_file(self.input)
+        meta_info = self.parse_from_meta_file(self.input)
 
-        # 获取最新的version、release 和补丁文件
-        version, release, patch_list = self.get_patch_list(hotpatchs)
-
-        # 检查xml中字段是否都存在
-        hotpatch_dict = self.verify_meta_field(version, release)
-
-        # 热补丁issue检查, 获取issue标题和创建时间
-        hotpatch_issue_url = hotpatch_dict.get("hotpatch_issue")
-        self.check_hotpatch_issue(hotpatch_issue_url)
+        # 检查cve type和name字段是否合法
+        result = self.verify_meta_field(meta_info)
+        if result < 0:
+            return -1
 
         # 元数据文件变更对比
-        self.compare_modify_version()
+        result = self.compare_modify_version(meta_info)
+        return result
 
     def comment_metadata_pr(self, err_info):
         body_str = "热补丁制作流程已中止，错误信息：%s" % err_info
@@ -354,13 +280,14 @@ class VerifyHotPatchMeta:
         self.gitee.create_pr_comment(self.pull_request, body_str)
         self.gitee.remove_tag(self.pull_request, "ci_processing")
         self.gitee.create_tag(self.pull_request, "ci_failed")
-        sys.exit(1)
+        return -1
 
     def verify(self):
         self.gitee.remove_tag(self.pull_request, "ci_successful")
         self.gitee.remove_tag(self.pull_request, "ci_failed")
         self.gitee.create_tag(self.pull_request, "ci_processing")
-        self.get_update_info()
-        sys.exit(0)
-
-
+        result = self.get_update_info()
+        if result == 0:
+            sys.exit(0)
+        else:
+            sys.exit(1)
