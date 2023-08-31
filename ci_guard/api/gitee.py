@@ -121,3 +121,6 @@ class Gitee(Api):
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
         return self._get(url, self._params(body=body))
+    def get_issue(self, cve_issue, enterprises="open_euler"):
+        issue_url = f"https://gitee.com/api/v5/enterprises/{enterprises}/issues/{cve_issue}?access_token={self._token}"
+        return self._get(issue_url)
