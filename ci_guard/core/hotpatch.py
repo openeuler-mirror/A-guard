@@ -258,7 +258,7 @@ class MakeHotPatchProject:
         arm_publish_statuses = [1]
 
         logger.info("The packages under the project are building, please wait...")
-        while x86_publish_statuses and arm_publish_statuses:
+        while x86_publish_statuses or arm_publish_statuses:
             time.sleep(10)
             x86_build_project_result = self._command_result(query_x86_build_project_cmds)
             x86_publish_statuses = self._get_publish_statuse(x86_build_project_result)
@@ -290,7 +290,7 @@ class MakeHotPatchProject:
             for build_target in projects[0]["_source"]["build_targets"]:
                 architecture = build_target.get("architecture")
                 os_variant = build_target.get("os_variant")
-                repo_url = f"{config.ebs_server}/api/{emsx}/repositories/{self.test_project_name}/{os_variant}/{architecture}"
+                repo_url = f"{config.ebs_server}api/{emsx}/repositories/{self.test_project_name}/{os_variant}/{architecture}/"
                 repos_dict[architecture] = repo_url
         except (KeyError, IndexError):
             raise ValueError()
