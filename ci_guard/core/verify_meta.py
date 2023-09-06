@@ -54,7 +54,7 @@ class VerifyHotPatchMeta:
         hotpatchs = []
         with open(meta_file, "r", encoding="utf-8", ) as f:
             d = xmltodict.parse(f.read(), process_namespaces="ns0")
-            hotpatchdoc_url = "https://gitee.com/openeuler/HotPatch_metadata:hotpatchdoc"
+            hotpatchdoc_url = "https://gitee.com/openeuler/hotpatch_meta:hotpatchdoc"
             hotpatch_result = d.get(hotpatchdoc_url, {}).get("HotPatchList", {}).get("Package", {}).get("hotpatch", [])
             logger.info(hotpatch_result)
             if hotpatch_result and isinstance(hotpatch_result, dict):
@@ -156,9 +156,12 @@ class VerifyHotPatchMeta:
         issue_id_list = []
         issue_list = curr_meta_info.get('issue')
         try:
-            for issue in issue_list:
-                issue_id_list.append(issue.get["@id"])
-            curr_name = curr_meta_info.get["name"]
+            if isinstance(issue_list, dict):
+                issue_id_list.append(issue_list.get("@id"))
+            elif isinstance(issue_list, list):
+                for issue in issue_list:
+                    issue_id_list.append(issue.get("@id"))
+            curr_name = curr_meta_info.get("name")
             need_name = "SGL-%s" % ("-".join(issue_id_list))
             if curr_name != need_name:
                 error_info = f"热补丁name字段与issue id字段不匹配，当前为：{curr_name}， 应该为：{need_name}"
@@ -166,6 +169,7 @@ class VerifyHotPatchMeta:
         except KeyError as error:
             logger.error(f"get matedata keyerror: {error}")
             return -1
+        return 0
 
     def verify_meta_field(self, meta_info):
         curr_meta_info = meta_info[-1]

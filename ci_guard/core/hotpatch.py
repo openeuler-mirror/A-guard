@@ -15,7 +15,6 @@
 import time
 import uuid
 import json
-
 from constant import STOP_MAX_ATTEMPT_NUMBER
 from logger import logger
 from pathlib import Path
@@ -199,7 +198,7 @@ class MakeHotPatchProject:
             },
             "hotpatch_config": {
                 "package_repo": self.hotpatch_repo,
-                "exrta_build_dep": ["syscare-build-ebpf", "syscare-build", "aops-apollo-tool"],
+                "extra_build_dep": ["syscare", "syscare-build", "syscare-build-ebpf", "aops-apollo-tool"],
                 "history_jobs": {
                     "aarch64": self.aarch_job_id,
                     "x86_64": self.x86_job_id
@@ -211,60 +210,36 @@ class MakeHotPatchProject:
         return base_dict
 
     @staticmethod
-    def _get_project_statuse(build_result):
-        project_build_status_stop = [201, 202, 203, 205]
-        project_statuses = [
-            _result["_source"].get("status")
-            for _result in build_result["data"]
-            if _result["_source"].get("status") not in project_build_status_stop
-        ]
-        return project_statuses
+    def _get_publish_status(build_result):
+        publish_status_stop = [0, 2, 4, 5, 6]
+        data = build_result["data"][0]
+        published_status = data["_source"].get("published_status")
+        publish_status = published_status if published_status in publish_status_stop else 1
+
+        return publish_status
 
     @staticmethod
-    def _get_build_detail(build_project_result):
-        build_detail = []
-
-        for build_packages in build_project_result["data"]:
-            for build_package, _detail in (build_packages.get("_source", {}).get("build_packages", {}).items()):
-                if _detail.get("build", {}).get("status") in [103, 109]:
-                    result = "success"
-                elif _detail.get("build", {}).get("status") in [104, 105, 107, 108, 110, ]:
-                    result = "failed"
-                elif _detail.get("build", {}).get("status") == 106:
-                    result = "exclude"
-                else:
-                    result = "unknown"
-                build_detail.append(
-                    {
-                        "package": build_package,
-                        "result": result,
-                    }
-                )
-        return build_detail
+    def _get_publish_detail(build_project_result):
+        data = build_project_result["data"]
+        publish = data[0].get("_source", {}).get("published_status")
+        logger.info(f"published_status: {publish}")
+        if publish == 4:
+            result = "success"
+        else:
+            result = "failed"
+        return result
 
     def query_build_project_result(self, build_ids):
         """
         Query the compilation results of the package
-        package build code interpretation:
-                JOB_BLOCKED = 100 # build
-                JOB_BUILDING = 101 # build
-                JOB_SIGNING = 102 # build
-                JOB_SUCCESS = 103 # build/install
-                JOB_FAILED = 104 # build/install
-                JOB_UNRESOLVABLE = 105 # build/install
-                JOB_EXCLUDED = 106 # build/install
-                JOB_ABORTED = 107 # build
-                JOB_UNKNOWN = 108 # install
-                JOB_CYCLE_SUCCESS = 109 # build/install
-                JOB_CYCLE_FAILED = 110 # build/install
-                JOB_FINAL = [JOB_SUCCESS, JOB_FAILED, JOB_EXCLUDED, JOB_ABORTED]
-        project build code interpretation:
-                BUILD_BUILDING = 200
-                BUILD_SUCCESS = 201
-                BUILD_FAILED = 202
-                BUILD_ABORTED = 203
-                BUILD_BLOCKED = 204
-                BUILD_EXCLUDED = 205
+        publish code interpretation:
+                PUBLISH_NO = 0
+                PUBLISH_WAITING = 1
+                PUBLISH_ABORTED = 2
+                PUBLISH_PUBLISHING = 3
+                PUBLISH_SUCCESS = 4
+                PUBLISH_FAILED = 5
+                PUBLUSH_MISSING_INFO = 6
         Args:
             build_id: triger build id
         Returns:
@@ -273,68 +248,55 @@ class MakeHotPatchProject:
         build_detail_dict = {}
         query_x86_build_project_cmds = ["ccb", "select", "builds",
                                         f"build_id={build_ids.get('x86_64').get('build_id')}",
-                                        "-f", "published_status,build_packages", ]
+                                        "-f", "published_status", ]
         query_aarch64_build_project_cmds = ["ccb", "select", "builds",
                                             f"build_id={build_ids.get('aarch64').get('build_id')}",
-                                            "-f", "published_status,build_packages", ]
-        x86_project_statuses = [200]
-        arm_project_statuses = [200]
+                                            "-f", "published_status", ]
+        x86_publish_status = 1
+        arm_publish_status = 1
 
         logger.info("The packages under the project are building, please wait...")
-        while x86_project_statuses and arm_project_statuses:
+        while x86_publish_status == 1 or arm_publish_status == 1:
             time.sleep(10)
             x86_build_project_result = self._command_result(query_x86_build_project_cmds)
-            x86_project_statuses = self._get_project_statuse(x86_build_project_result)
+            x86_publish_status = self._get_publish_status(x86_build_project_result)
 
             aarch64_build_project_result = self._command_result(query_aarch64_build_project_cmds)
-            arm_project_statuses = self._get_project_statuse(aarch64_build_project_result)
+            arm_publish_status = self._get_publish_status(aarch64_build_project_result)
 
-        x86_build_detail = self._get_build_detail(x86_build_project_result)
-        arm_build_detail = self._get_build_detail(aarch64_build_project_result)
+        x86_build_result = self._get_publish_detail(x86_build_project_result)
+        arm_build_result = self._get_publish_detail(aarch64_build_project_result)
 
-        build_detail_dict["x86"] = x86_build_detail
-        build_detail_dict["aarch64"] = arm_build_detail
+        build_detail_dict["x86_64"] = x86_build_result
+        build_detail_dict["aarch64"] = arm_build_result
 
         logger.info("make hotpatch completed")
+        logger.info(build_detail_dict)
         return build_detail_dict
 
-    @staticmethod
-    def get_repos(repo_ids):
+    def get_repos(self):
         repos_dict = {}
-        for arch in repo_ids:
-            repo_id = repo_ids.get("arch")
-            cmds = f"ccb select rpm_repos repo_id={repo_id} architecture={arch} -f rpm_repo_path"
-            code, cmd_out, error = command(cmds=cmds.split(), console=False)
-            if code and not cmd_out:
-                logger.error(
-                    f"Failed to get the project repo source,command: {cmds} error: {error}"
-                )
-                raise ValueError()
-            repo = json.loads(cmd_out)
-            repos_dict[arch] = repo[0]["_source"]["rpm_repo_path"]
+        cmds = f"ccb select projects os_project={self.test_project_name}"
+
+        code, out, error = command(cmds=cmds.split(), console=False)
+        if code and not out:
+            logger.error(f"Failed to get projects,command: {cmds} error: {error}.")
+            raise ValueError()
+        projects = json.loads(out)
+        try:
+            emsx = projects[0]["_source"]["emsx"]
+            for build_target in projects[0]["_source"]["build_targets"]:
+                architecture = build_target.get("architecture")
+                os_variant = build_target.get("os_variant")
+                repo_url = f"{config.ebs_server}api/{emsx}/repositories/{self.test_project_name}/{os_variant}/{architecture}/"
+                repos_dict[architecture] = repo_url
+        except (KeyError, IndexError):
+            raise ValueError()
+        logger.info(repos_dict)
         return repos_dict
 
-    @staticmethod
-    def get_repo_id(build_ids):
-        repo_id_dict = {}
-        for arch, detail in build_ids.items():
-            build_id = detail.get("build_id")
-            cmds = f"ccb select builds build_id={build_id} -f repo_id"
-            logger.info(cmds)
-            code, out, error = command(cmds=cmds.split(), console=False)
-            if code and not out:
-                logger.error(f"Failed to get the repo id,command: {cmds} error: {error}.")
-                raise ValueError()
-            build = json.loads(out)
-            try:
-                project_repo_id = build[0]["_source"]["repo_id"]
-            except (KeyError, IndexError):
-                raise ValueError()
-            repo_id_dict[arch] = project_repo_id
-        return repo_id_dict
-
     def comment_tag(self, build_details):
-        result_list = [0 if build_details.get(arch).get("result") == "success" else 1 for arch in build_details]
+        result_list = [0 if result == "success" else 1 for arch, result in build_details.items()]
         if sum(result_list) == 0:
             self.gitee.remove_tag(self.pull_request, "ci_failed")
             self.gitee.create_tag(self.pull_request, "ci_successful")
@@ -354,21 +316,17 @@ class MakeHotPatchProject:
 
     def comment_hotpatch_result(self, build_detail_dict, repo_urls):
         comments = ["<table><tr><th>Arch name</th> <th>Result</th><th>Download link</th> </tr>"]
-        for arch in ["aarch64", "x86_64"]:
-            result = build_detail_dict.get(arch).get("result")
-            build_url = repo_urls.get(arch).get("result")
+        for arch, result in build_detail_dict.items():
+            build_url = repo_urls.get(arch)
             if result == "success":
-                comments.append("<tr><td>{}</td> <td>{}<strong>{}</strong></td> <td><a href={}>#{}</a></td>".format(
-                    arch, ":white_check_mark:", result.upper(), build_url, build_url))
+                comments.append(f"<tr><td>{arch}</td> <td>:white_check_mark:{result.upper()}</td> "
+                                f"<td><a href={build_url}>{build_url}</a></td></tr>")
             else:
-                comments.append("<tr><td>{}</td> <td>{}<strong>{}</strong></td> <td>{}</td>".format(
-                    arch, ":x:", result.upper(), ""))
+                comments.append(f"<tr><td>{arch}</td> <td>:x:{result.upper()}</td> <td></td></tr>")
 
-            comments.append("</table>")
+        comments.append("</table>")
         self.comment_to_pr(comments)
         self.comment_tag(build_detail_dict)
-
-        return comments
 
     def build_patch(self):
         """
@@ -397,10 +355,8 @@ class MakeHotPatchProject:
         logger.info("build_detail = %s", build_detail_dict)
 
         # 5. get build result rpm
-        logger.info("*************** get hotpatch task repo_id ***************")
-        repo_ids = self.get_repo_id(build_id_dict)
         logger.info("*************** get hotpatch task repo url ***************")
-        repo_urls = self.get_repos(repo_ids)
+        repo_urls = self.get_repos()
 
         # 6. comment result to pr
         logger.info("*************** comment result to hotpatch_meta pr ***************")
