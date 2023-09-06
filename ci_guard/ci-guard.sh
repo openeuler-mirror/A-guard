@@ -192,7 +192,7 @@ EOF
   )
     ssh -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@${repo_server} "$remote_dir_reset_cmd"
 
-    if [[ -e $result_dir/report-$old_dir-$new_dir/osv.json && "$(ls -A $old_dir | grep '.rpm')" && "$(ls -A $new_dir | grep '.rpm')" ]] && [[ ${build_env} == "obs" ]]; then
+    if [[ -e $result_dir/report-$old_dir-$new_dir/osv.json && "$(ls -A $old_dir | grep '.rpm')" && "$(ls -A $new_dir | grep '.rpm')" ]]; then
         old_any_rpm=$(ls $old_dir | head -n 1)
         old_version=$(rpm -q $old_dir/$old_any_rpm --queryformat '%{version}\n')
         old_release=$(rpm -q $old_dir/$old_any_rpm --queryformat '%{release}\n')
@@ -205,7 +205,7 @@ EOF
         new_json_name=${repo}_${old_version}-${old_release}_${new_version}-${new_release}.json
         scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/report-$old_dir-$new_dir/osv.json root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/$new_json_name
     fi
-    if [[ -d $new_dir && "$(ls -A $new_dir | grep '.rpm')" ]] && [[ ${build_env} == "obs" ]]; then
+    if [[ -d $new_dir && "$(ls -A $new_dir | grep '.rpm')" ]]; then
         scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $new_dir/* root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/
     fi
     if [[ -e $compare_result ]]; then
