@@ -15,7 +15,6 @@
 import time
 import uuid
 import json
-
 from constant import STOP_MAX_ATTEMPT_NUMBER
 from logger import logger
 from pathlib import Path
@@ -211,14 +210,13 @@ class MakeHotPatchProject:
         return base_dict
 
     @staticmethod
-    def _get_publish_statuse(build_result):
+    def _get_publish_status(build_result):
         publish_status_stop = [0, 2, 4, 5, 6]
-        publish_statuses = [
-            _result["_source"].get("published_status")
-            for _result in build_result["data"]
-            if _result["_source"].get("published_status") not in publish_status_stop
-        ]
-        return publish_statuses
+        data = build_result["data"][0]
+        published_status = data["_source"].get("published_status")
+        publish_status = published_status if published_status in publish_status_stop else 1
+
+        return publish_status
 
     @staticmethod
     def _get_publish_detail(build_project_result):
@@ -254,17 +252,17 @@ class MakeHotPatchProject:
         query_aarch64_build_project_cmds = ["ccb", "select", "builds",
                                             f"build_id={build_ids.get('aarch64').get('build_id')}",
                                             "-f", "published_status", ]
-        x86_publish_statuses = [1]
-        arm_publish_statuses = [1]
+        x86_publish_status = 1
+        arm_publish_status = 1
 
         logger.info("The packages under the project are building, please wait...")
-        while x86_publish_statuses or arm_publish_statuses:
+        while x86_publish_status == 1 or arm_publish_status == 1:
             time.sleep(10)
             x86_build_project_result = self._command_result(query_x86_build_project_cmds)
-            x86_publish_statuses = self._get_publish_statuse(x86_build_project_result)
+            x86_publish_status = self._get_publish_status(x86_build_project_result)
 
             aarch64_build_project_result = self._command_result(query_aarch64_build_project_cmds)
-            arm_publish_statuses = self._get_publish_statuse(aarch64_build_project_result)
+            arm_publish_status = self._get_publish_status(aarch64_build_project_result)
 
         x86_build_result = self._get_publish_detail(x86_build_project_result)
         arm_build_result = self._get_publish_detail(aarch64_build_project_result)
