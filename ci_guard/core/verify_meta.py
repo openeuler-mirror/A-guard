@@ -81,7 +81,11 @@ class VerifyHotPatchMeta:
                     tmp["issue"] = hotpatch["issue"]
                     meta_info.append(tmp)
                 except KeyError as error:
-                    raise RuntimeError(f"get matedata keyerror: {error}")
+                    error_info = f"校验元数据字段错误，keyerror: {error}"
+                    return self.comment_metadata_pr(error_info)
+        if not meta_info:
+            return self.comment_metadata_pr("没有获取到元数据有效信息")
+
         return meta_info
 
     def get_version_release(self, meta_info):
@@ -223,7 +227,8 @@ class VerifyHotPatchMeta:
             raise RuntimeError(f"git checkout master failed, {ret}")
         if os.path.exists(self.input):
             old_meta_info = self.parse_from_meta_file(self.input)
-
+            if isinstance(old_meta_info, int):
+                return -1
         # 比较新旧元数据文件的变更
         new_meta_info = meta_info
         if old_meta_info and new_meta_info:
@@ -268,7 +273,8 @@ class VerifyHotPatchMeta:
     def get_update_info(self):
         # 读取xml中的hotpatch字段
         meta_info = self.parse_from_meta_file(self.input)
-
+        if isinstance(meta_info, int):
+            return -1
         # 检查cve type和name字段是否合法
         result = self.verify_meta_field(meta_info)
         if result < 0:
