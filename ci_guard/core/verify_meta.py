@@ -226,7 +226,7 @@ class VerifyHotPatchMeta:
         if os.path.exists(self.input):
             old_meta_info = self.parse_from_meta_file(self.input)
             if not old_meta_info:
-                return self.comment_metadata_pr("校验元数据字段失败，没有获取到有效信息")
+                return self.comment_metadata_pr("解析变更前的元数据字段失败，没有获取到有效信息")
         # 比较新旧元数据文件的变更
         new_meta_info = meta_info
         if old_meta_info and new_meta_info:
