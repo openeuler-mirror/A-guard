@@ -2,6 +2,7 @@
 COMMAND=$1
 JENKINS_HOME=/home/jenkins
 SCRIPT_CMD=${shell_path}/ci_guard/ci.py
+METADATA_PATH=${WORKSPACE}/hotpatch_meta
 EBS_SERVER="https://eulermaker.compass-ci.openeuler.openatom.cn/"
 ARCH=(source x86_64 aarch64)
 
@@ -10,7 +11,7 @@ function update_config(){
     echo "============ Start synchronizing jenkin environment variables ============"
     sed -i "/^gitee_token: */cgitee_token: ${GiteeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^workspace: */cworkspace: ${WORKSPACE}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^branch: */cbranch: ${tbranch}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^branch: */cbranch: ${branch}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^pr: */cpr: ${giteePullRequestIid}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^repo: */crepo: ${giteeRepoName}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^ebs_server: */cebs_server: ${EBS_SERVER}" ${shell_path}/ci_guard/conf/config.yaml
@@ -28,7 +29,7 @@ function clean_env(){
 }
 
 function config_ebs(){
-    echo "Start config ebs env"
+    echo "========== Start config ebs env =========="
     if [ ! -d ~/.config/cli/defaults ]; then
         mkdir -p ~/.config/cli/defaults
     fi
@@ -50,7 +51,7 @@ PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
 EOF
     source /etc/profile
     source $HOME/.${SHELL##*/}rc
-    echo "The ebs configuration is complete."
+    echo "========== The ebs configuration is complete. =========="
     cat ~/.config/cli/defaults/config.yaml
 }
 
@@ -58,16 +59,16 @@ function make_hotpatch(){
     echo "============ Start make hotpatch  ============"
     python3 $SCRIPT_CMD hotpatch -xd $WORKSPACE/$x86_debug_name -ad $WORKSPACE/$aarch64_debug_name -t "$issue_title" -d $issue_date -r $repo
     if  [ $? -ne 0 ]; then
-        echo "Single package build failed"
+        echo "========== Make hotpatch failed ========== "
         exit 1
     fi
-    echo "Single package build successfully"
+    echo "========== Make hotpatch successfully ========== "
 }
 
 function get_pr_commit(){
-    echo "***********get pr commit**********"
-    git clone https://gitee.com/openeuler/hotpatch_meta ${metadata_path}/
-    cd ${metadata_path}
+    echo "========== get pr commit =========="
+    git clone https://gitee.com/openeuler/hotpatch_meta ${METADATA_PATH}/
+    cd ${METADATA_PATH}
 
     if [[ ${giteePullRequestIid} ]]; then
         git fetch origin pull/$giteePullRequestIid/head:pr_$giteePullRequestIid
@@ -78,19 +79,19 @@ function get_pr_commit(){
 
     echo ${hotmetadata_path}
 
-    if [[ !${hotmetadata_path} ]]; then
-        echo "this pr not exist patch hotmetadata.xml."
+    if [[ -z ${hotmetadata_path} ]]; then
+        comment_error_src_pr "元数据文件没有变更."
     fi
 
-    hotmetadata_xml=${metadata_path}/${hotmetadata_path}
+    hotmetadata_xml=${METADATA_PATH}/${hotmetadata_path}
     echo ${hotmetadata_xml}
-    tbranch=`echo $hotmetadata_path | awk -F '/' '{print $1}'`
+    branch=`echo $hotmetadata_path | awk -F '/' '{print $1}'`
     repo=`echo $hotmetadata_path | awk -F '/' '{print $2}'`
     cd $WORKSPACE
 }
 
 function check_whether_multiple_packages(){
-    echo "**********check whether multiple packages********"
+    echo "========== check whether multiple packages =========="
     patch_list=`git diff --name-status HEAD~1 HEAD~0 | grep "\.patch" |awk -F ' ' '{print $2}'`
 
     echo ${hotmetadata_path}
@@ -166,8 +167,8 @@ function check_whether_multiple_packages(){
         comment_error_src_pr "元数据文件名包含不支持的补丁演进方式，目前支持的演进方式为ACC/SGL"
     fi
 
-    hotmetadata_xml=${metadata_path}/${hotmetadata_path}
-    repo_path=${metadata_path}/${repo_path}
+    hotmetadata_xml=${METADATA_PATH}/${hotmetadata_path}
+    repo_path=${METADATA_PATH}/${repo_path}
 
     echo ${hotmetadata_xml}
     echo ${repo_path}
@@ -175,7 +176,7 @@ function check_whether_multiple_packages(){
 
 
 function get_rpm_package(){
-    echo "**********get rpm package from relase********"
+    echo "========== get rpm package from relase =========="
     echo "get x86_64 debuginfo rpm"
     x86_debug_url=`cat ${hotmetadata_xml} | grep Debug_RPM_X86_64 | sed 's/^.*<Debug_RPM_X86_64>//g' | sed 's/<\/Debug_RPM_X86_64>.*$//g'|awk -F " " 'END {print}' | sed -e 's#repo.openeuler.org#repo.openeuler.openatom.cn#'`
     wget -q ${x86_debug_url} || echo "get source rpm failed"
@@ -187,6 +188,7 @@ function get_rpm_package(){
 }
 
 function get_hotpatch_issue(){
+    echo "========== get hotpatch issue info =========="
     issue_title=`cat ${update_info_file} | grep issue_title: | sed 's/^.*issue_title: //g'`
     issue_date=`cat ${update_info_file} | grep issued-date: | sed 's/^.*issued-date: //g'`
 }
@@ -203,14 +205,14 @@ function retry_command(){
             break
         else
             attempt=$((attempt+1))
-            echo "command fauiled $attempt, retrying $attempt times"
+            echo "command failed, retrying $attempt times"
             sleep $wait_time
         fi
     done
 }
 
 function download_hotpatch_rpm(){
-    echo "***********download hotpatch from Eulermaker**********"
+    echo "========== download hotpatch from Eulermaker =========="
     project="HotPatch:${giteePullRequestIid}"
     package="hotpatch_meta"
     result=`ccb select projects os_project=${project}`
@@ -221,22 +223,22 @@ function download_hotpatch_rpm(){
     do
         arch=${archs[$i]}
         os_variant=${os_variants[$i]}
-        url="${ebs_server}/api/${emsx}/repositories/${project}/${os_variant}/${arch}"
+        url="${EBS_SERVER}/api/${emsx}/repositories/${project}/${os_variant}/${arch}"
         echo "Download the RPM package generated by $package project $project arch $arch."
 
         mkdir -p ${hotpatch_path}/${arch}/Packages ${hotpatch_path}/${arch}/hotpatch_xml
-        retry_command "wget -r -l1 -nd -A 'patch*.xml' $url/hotpatch_xml/ -P ${hotpatch_path}/${arch}/hotpatch_xml/"
-        retry_command "wget -r -l1 -nd -A 'patch*.rpm' $url/Packages/ -P ${hotpatch_path}/${arch}/Packages/"
+        retry_command "wget -r -q -l1 -nd -A 'patch*.xml' $url/hotpatch_xml/ -P ${hotpatch_path}/${arch}/hotpatch_xml/"
+        retry_command "wget -r -q -l1 -nd -A 'patch*.rpm' $url/Packages/ -P ${hotpatch_path}/${arch}/Packages/"
         if [[ $arch == "x86_64" ]]; then
             mkdir -p ${hotpatch_path}/source/Packages ${hotpatch_path}/source/hotpatch_xml
-            retry_command "wget -r -l1 -nd -A '*.src.xml' $url/hotpatch_xml/ -P ${hotpatch_path}/source/hotpatch_xml/"
-            retry_command "wget -r -l1 -nd -A '*.src.rpm' $url/Packages/ -P ${hotpatch_path}/source/Packages/"
+            retry_command "wget -r -q -l1 -nd -A '*.src.xml' $url/hotpatch_xml/ -P ${hotpatch_path}/source/hotpatch_xml/"
+            retry_command "wget -r -q -l1 -nd -A '*.src.rpm' $url/Packages/ -P ${hotpatch_path}/source/Packages/"
         fi
     done
 }
 
 function create_repo(){
-    echo "**********begin create repo**********"
+    echo "========== begin create repo ==========="
     remote_hotpatch=/repo/openeuler/hotpatch/${branch}
     dailybuild_path="http://${dailybuild_ip}/hotpatch/${branch}"
     for ar in ${ARCH[@]}
@@ -251,7 +253,7 @@ function create_repo(){
 }
 
 function comment_issue(){
-    echo "**********comment hotpatch link to hotpatch issue**********"
+    echo "========== comment hotpatch link to hotpatch issue =========="
     echo "get hotpatch issue body"
     hotpatch_issue_link=`cat ${hotmetadata_xml} | grep hotpatch_issue_link | sed 's/^.*<hotpatch_issue_link>//g' | sed 's/<\/hotpatch_issue_link>.*$//g'|awk -F " " 'END {print}'`
     issue_number=`echo ${hotpatch_issue_link}|awk -F '/' '{print $7}'`
@@ -292,6 +294,7 @@ function comment_issue(){
 }
 
 function comment_job_info(){
+    echo "========== comment job info =========="
     job_name=`echo $JOB_NAME|sed -e 's#/#/job/#g'`
     job_path="https://openeulerjenkins.osinfra.cn/job/${job_name}/$BUILD_ID/console"
     body_str="热补丁构建入口：<a href=${job_path}>multiarch/src-openeuler/syscare-patch/hotpatch_meta_ebs</a>，当前构建号为 $BUILD_ID"
@@ -299,6 +302,7 @@ function comment_job_info(){
 }
 
 function check_version_released(){
+    echo "========== check version is released =========="
     release_path=/repo/openeuler/${comment_branch}
     hotpatch_update_src_path=hotpatch_update/source/Packages
     # 判断最近一次版本是否已被发布
@@ -325,7 +329,7 @@ function check_version_released(){
 }
 
 function comment_error_src_pr(){
-    echo "**********comment hotmetadata pr link to pr********"
+    echo "========== comment hotmetadata pr link to pr =========="
     body_str="热补丁制作流程已中止，$1 "
     curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/repos/'${giteeTargetNamespace}'/'${giteeRepoName}'/pulls/'${giteePullRequestIid}'/comments' -d '{"access_token":"'"${token}"'","body":"'"${body_str}"'"}' || echo "comment pr failed"
     echo "create tag"
@@ -346,6 +350,9 @@ function verify_meta() {
     # 解析metadata.xml获取信息
     export PYTHONPATH=${shell_path}/ci_guard
     python3 $SCRIPT_CMD verify_meta  -i ${hotmetadata_xml} -o ${update_info_file} -p ${patch_list} -m ${mode}
+    if [[ $? -ne 0 ]];then
+        exit -1
+    fi
     cat ${update_info_file}
 
     # 判断版本是否已被发布
@@ -353,7 +360,6 @@ function verify_meta() {
 }
 
 function make_patch(){
-    metadata_path=$WORKSPACE/hotpatch_meta/
     update_info_file=${WORKSPACE}/update_info
     # 清理环境
     clean_env
@@ -375,9 +381,12 @@ function make_patch(){
 }
 
 function approve_hotpatch(){
-    metadata_path=${WORKSPACE}/hotpatch_meta
     hotpatch_path=${WORKSPACE}/hotpatch_pr_${giteePullRequestIid}
     sudo yum install -y jq
+    # 清理环境
+    clean_env
+    # 配置lkp客户端
+    config_ebs
     # 获取pr最新提交内容
     get_pr_commit
     # 从repo源获取热补丁产物
@@ -386,7 +395,7 @@ function approve_hotpatch(){
     create_repo
     # 上报路径至热补丁issue
     comment_issue
-    cd ${metadata_path}
+    cd ${METADATA_PATH}
     echo "delete remote branch"
     set +e
     # 删除临时分支
