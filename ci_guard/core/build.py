@@ -270,6 +270,9 @@ class EbsBuildVerify(BuildMeta):
             "build_targets": [
                 {"os_variant": os_variant_name, "architecture": self.arch}
             ],
+            "build_env_macros+": {
+                "skip_check": "n"
+                },
             my_spec_type: [
                 {
                     "spec_name": spec_name,
