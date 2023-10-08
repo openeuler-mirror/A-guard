@@ -44,6 +44,10 @@ class InstallBase:
         self._target_branch = target_branch or config.branch
         self._ignore = ignore
 
+    @property
+    def project(self):
+        return f"{config.branch}:{self._arch}:{self._repo}:{self._pull}"
+
     @staticmethod
     def json_loads(json_str):
         """
@@ -277,7 +281,7 @@ class InstallBase:
             build_id = content["build_id"]
             logger.info(f"build_id:{build_id}")
             unifybuild = UnifyBuildInstallVerify()
-            if not unifybuild.update_repo(build_id):
+            if not unifybuild.update_repo(build_id, self.project):
                 logger.error("repo error")
                 return
         logger.info("=============Update repo source successful=============")
@@ -419,10 +423,6 @@ class UnifyBuildInstallVerify(InstallBase):
     def __init__(self, arch=None, target_branch=None, ignore=False) -> None:
         super().__init__(arch, target_branch, ignore)
 
-    @property
-    def project(self):
-        return f"{config.branch}:{self._arch}:{self._repo}:{self._pull}"
-
     @staticmethod
     def _load_repos(out_repo):
         repos = UnifyBuildInstallVerify.json_loads(out_repo)
@@ -443,6 +443,21 @@ class UnifyBuildInstallVerify(InstallBase):
             repos[repo_id] = repo[-1]["_source"]["rpm_repo_path"]
         return repos
 
+    def _get_emsx(self, project):
+        cmds = f"ccb select projects os_project={project}"
+        code, cmd_out, error = command(cmds=cmds.split(), console=False)
+        if code:
+            logger.error(
+                f"Failed to get the project info,command: {cmds} error: {error}"
+            )
+            raise ValueError()
+        repo = UnifyBuildInstallVerify.json_loads(cmd_out)
+        try:
+            emsx = repo[-1]["_source"]["emsx"]
+        except (KeyError, IndexError):
+            raise ValueError()
+        return emsx
+
     def _get_repo_id(self, build_id):
         cmds = f"ccb select builds build_id={build_id} -f repo_id,ground_projects"
         logger.info(cmds)
@@ -459,7 +474,7 @@ class UnifyBuildInstallVerify(InstallBase):
             raise ValueError()
         return project_repo_id, ground_project_repo_id
 
-    def update_repo(self, build_id):
+    def update_repo(self, build_id, os_project):
         """
         Generate the repo source
         :param branch: Warehouse branch
@@ -477,11 +492,12 @@ class UnifyBuildInstallVerify(InstallBase):
             return False
 
         repo_content = ""
+        emsx = self._get_emsx(os_project)
         for project, repo in repos.items():
             repo_content += f"""
 [{project}]
 name={project}
-baseurl={config.ebs_server}/api{repo}
+baseurl={config.ebs_server}/api/{emsx}{repo}
 enabled=1
 gpgcheck=0
 """
