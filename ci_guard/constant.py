@@ -60,6 +60,7 @@ MAINLINE_PROJECT_NAMES = [
 OS_VARIANR_MAP = {"openEuler-22.03-LTS-SP1": "openEuler:22.03-LTS-Next",
                   "openEuler-22.03-LTS-SP2": "openEuler:22.03-LTS-SP2",
                   "openEuler-22.03-LTS-Next": "openEuler:22.03-lts-next-dailybuild",
+                  "openEuler-20.03-LTS-SP4": "openEuler:20.03-LTS-SP4",
                   "master": "openEuler:mainline"}
 # abi change effects number
 max_abi_change_effects_number = 5
