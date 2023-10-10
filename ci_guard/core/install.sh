@@ -57,12 +57,12 @@ function install_rpms() {
             echo "Start installing the archive package $rpm."
             start=$(date "+%Y%m%d%H%M%S")
             sudo dnf install -y --setopt=reposdir=${WORKSPACE} --installroot=$install_root $rpm 2>&1 | tee -a $INSTALL_LOG_DIR/$rpm.log
-            if [ $? -ne 0 ] || [ -n "$(grep -E 'nothing provides' $INSTALL_LOG_DIR/$rpm.log)" ]; then
-                echo "Failed installing the archive package $rpm."
-                echo $rpm":"$start":"$(date "+%Y%m%d%H%M%S")":""failed" >>$INSTALL_LOG_DIR/installed
-            else
+            if [ $? -eq 0 ] && [ -n "$(grep -E 'Complete!' $INSTALL_LOG_DIR/$rpm.log)" ]; then
                 echo "$rpm installed successfully."
                 echo $rpm":"$start":"$(date "+%Y%m%d%H%M%S")":""success" >>$INSTALL_LOG_DIR/installed
+            else
+                echo "Failed installing the archive package $rpm."
+                echo $rpm":"$start":"$(date "+%Y%m%d%H%M%S")":""failed" >>$INSTALL_LOG_DIR/installed
             fi
         done
     else
@@ -72,12 +72,12 @@ function install_rpms() {
             right_rpm=$(echo ${rpm%-*-*})
             start=$(date "+%Y%m%d%H%M%S")
             sudo dnf localinstall -y --setopt=reposdir=${WORKSPACE} --installroot=$install_root $WORKSPACE/rpms/$rpm 2>&1 | tee -a $INSTALL_LOG_DIR/$right_rpm.log
-            if [ $? -ne 0 ] || [ -n "$(grep -E 'nothing provides' $INSTALL_LOG_DIR/$right_rpm.log)" ]; then  
-                echo "Failed local installing $right_rpm."
-                echo $right_rpm":"$start":"$(date "+%Y%m%d%H%M%S")":""failed" >>$INSTALL_LOG_DIR/installed
-            else
+            if [ $? -eq 0 ] && [ -n "$(grep -E 'Complete!' $INSTALL_LOG_DIR/$right_rpm.log)" ]; then  
                 echo "The $right_rpm is successfully installed on the local."
                 echo $right_rpm":"$start":"$(date "+%Y%m%d%H%M%S")":""success" >>$INSTALL_LOG_DIR/installed
+            else
+                echo "Failed local installing $right_rpm."
+                echo $right_rpm":"$start":"$(date "+%Y%m%d%H%M%S")":""failed" >>$INSTALL_LOG_DIR/installed
             fi
         done
     fi
