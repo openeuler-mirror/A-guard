@@ -441,7 +441,7 @@ class UnifyBuildInstallVerify(InstallBase):
                 raise ValueError()
             repo = UnifyBuildInstallVerify.json_loads(cmd_out)
             repos[repo_id] = repo[-1]["_source"]["rpm_repo_path"]
-        return repos
+        return repos
 
     def _get_emsx(self, project):
         cmds = f"ccb select projects os_project={project}"
@@ -454,9 +454,15 @@ class UnifyBuildInstallVerify(InstallBase):
         repo = UnifyBuildInstallVerify.json_loads(cmd_out)
         try:
             emsx = repo[-1]["_source"]["emsx"]
+        except (KeyError, IndexError):
+            emsx = "ems1"
+
+        try:
             bootstrap_repo = repo[-1]["_source"]["bootstrap_rpm_repo"]
         except (KeyError, IndexError):
-            raise ValueError()
+            logger.info("bootstrap_rpm_repo not exist")
+            bootstrap_repo = []
+
         return emsx, bootstrap_repo
 
     def _get_repo_id(self, build_id):
