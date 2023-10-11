@@ -454,9 +454,10 @@ class UnifyBuildInstallVerify(InstallBase):
         repo = UnifyBuildInstallVerify.json_loads(cmd_out)
         try:
             emsx = repo[-1]["_source"]["emsx"]
+            bootstrap_repo = repo[-1]["_source"]["bootstrap_rpm_repo"]
         except (KeyError, IndexError):
             raise ValueError()
-        return emsx
+        return emsx, bootstrap_repo
 
     def _get_repo_id(self, build_id):
         cmds = f"ccb select builds build_id={build_id} -f repo_id,ground_projects"
@@ -492,12 +493,20 @@ class UnifyBuildInstallVerify(InstallBase):
             return False
 
         repo_content = ""
-        emsx = self._get_emsx(os_project)
+        emsx, bootstrap_repo = self._get_emsx(os_project)
         for project, repo in repos.items():
             repo_content += f"""
 [{project}]
 name={project}
 baseurl={config.ebs_server}/api/{emsx}{repo}
+enabled=1
+gpgcheck=0
+"""
+        for repos in bootstrap_repo:
+            repo_content += f"""
+[bootstrap_{repos.get("name")}]
+name=bootstrap_{repos.get("name")}
+baseurl={repos.get("repo")}/{self._arch}
 enabled=1
 gpgcheck=0
 """
