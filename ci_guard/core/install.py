@@ -481,6 +481,25 @@ class UnifyBuildInstallVerify(InstallBase):
         except (KeyError, IndexError):
             raise ValueError()
         return project_repo_id, ground_project_repo_id
+  
+    def get_bootstrap_repo(self, bootstrap_repo):
+        repo_content = ""
+        for repos in bootstrap_repo:
+            repo_url = repos.get("repo")
+            ebs_server = "https://eulermaker.compass-ci.openeuler.openatom.cn/api"
+            ip_port_result = re.match("http://192.168.\d+.\d+:\d+", repo_url)
+            if ip_port_result:
+                ip_port = ip_port_result.group(0)
+                bootstrap_emsx = constant.BOOTSTRAP_MAP.get(ip_port)
+                repo_url = repo_url.replace(ip_port, f"{ebs_server}/{bootstrap_emsx}")
+            repo_content += f"""
+[bootstrap_{repos.get("name")}]
+name=bootstrap_{repos.get("name")}
+baseurl={repo_url}/{self._arch}
+enabled=1
+gpgcheck=0
+"""
+        return repo_content
 
     def update_repo(self, build_id, os_project):
         """
@@ -509,17 +528,9 @@ baseurl={config.ebs_server}/api/{emsx}{repo}
 enabled=1
 gpgcheck=0
 """
-        for repos in bootstrap_repo:
-            repo_url = repos.get("repo")
-            ebs_server = "https://eulermaker.compass-ci.openeuler.openatom.cn"
-            repo_url = re.sub("http://192.168.\d+.\d+:\d+", ebs_server, repo_url)
-            repo_content += f"""
-[bootstrap_{repos.get("name")}]
-name=bootstrap_{repos.get("name")}
-baseurl={repo_url}/{self._arch}
-enabled=1
-gpgcheck=0
-"""
+        bootstrap_repo_content = self.get_bootstrap_repo(bootstrap_repo)
+        repo_content += bootstrap_repo_content
+
         try:
             with open(
                 os.path.join(config.workspace, "ci-tools.repo"), "w", encoding="utf-8"
