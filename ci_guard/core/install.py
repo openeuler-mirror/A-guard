@@ -12,6 +12,7 @@
 # ******************************************************************************/
 import os
 import json
+import re
 import yaml
 from pathlib import Path
 from api.gitee import Gitee
@@ -509,10 +510,13 @@ enabled=1
 gpgcheck=0
 """
         for repos in bootstrap_repo:
+            repo_url = repos.get("repo")
+            ebs_server = "https://eulermaker.compass-ci.openeuler.openatom.cn"
+            repo_url = re.sub("http://192.168.\d+.\d+:\d+", ebs_server, repo_url)
             repo_content += f"""
 [bootstrap_{repos.get("name")}]
 name=bootstrap_{repos.get("name")}
-baseurl={repos.get("repo")}/{self._arch}
+baseurl={repo_url}/{self._arch}
 enabled=1
 gpgcheck=0
 """
