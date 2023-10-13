@@ -93,7 +93,7 @@ function scp_remote_service(){
     chmod 755 $WORKSPACE/records-course/${repo}_${prid}_${arch}_comment
     cat $WORKSPACE/records-course/${repo}_${prid}_${arch}_comment
     echo $fileserver_tmpfile_path
-    scp -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $WORKSPACE/records-course/${repo}_${prid}_${arch}_comment root@${repo_server}:$fileserver_tmpfile_path
+    retry_command "scp -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $WORKSPACE/records-course/${repo}_${prid}_${arch}_comment root@${repo_server}:$fileserver_tmpfile_path"
 }
 
 function check_single_install(){
@@ -203,16 +203,16 @@ EOF
         new_release=${new_release%%\.oe1}
 
         new_json_name=${repo}_${old_version}-${old_release}_${new_version}-${new_release}.json
-        scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/report-$old_dir-$new_dir/osv.json root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/$new_json_name
+        retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/report-$old_dir-$new_dir/osv.json root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/$new_json_name"
     fi
     if [[ -d $new_dir && "$(ls -A $new_dir | grep '.rpm')" ]]; then
-        scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $new_dir/* root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/
+        retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $new_dir/* root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/"
     fi
     if [[ -e $compare_result ]]; then
-        scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${compare_result} root@${repo_server}:$fileserver_tmpfile_path/${compare_result}
+        retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${compare_result} root@${repo_server}:$fileserver_tmpfile_path/${compare_result}"
     fi
      if [[ -e $comment_file ]]; then
-         scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${comment_file} root@${repo_server}:$fileserver_tmpfile_path/${comment_file}
+        retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${comment_file} root@${repo_server}:$fileserver_tmpfile_path/${comment_file}"
      fi
     echo "save result"
 
@@ -335,10 +335,28 @@ EOF
     cat ~/.config/cli/defaults/config.yaml
 }
 
+function retry_command(){
+    local command=$1
+    local max_time=3
+    local wait_time=10
+    local attempt=0
+    while [[ $attempt -lt max_time ]]
+    do
+        if eval $command; then
+            echo "command executed successful"
+            break
+        else
+            attempt=$((attempt+1))
+            echo "command failed, retrying $attempt times"
+            sleep $wait_time
+        fi
+    done
+}
+
 function main(){
     exclusive_arch=$arch
     support_arch_file=${repo}_${prid}_support_arch
-    scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${repo_server}:/repo/soe${repo_server_test_tail}/support_arch/${support_arch_file} . || echo "${support_arch_file}" not exist
+    retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${repo_server}:/repo/soe${repo_server_test_tail}/support_arch/${support_arch_file} ."
     ls -l .
     if [[ -e ${support_arch_file} ]]; then
       support_arch=`cat ${support_arch_file}`
