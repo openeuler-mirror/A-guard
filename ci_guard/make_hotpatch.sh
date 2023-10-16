@@ -65,6 +65,14 @@ function make_hotpatch(){
     echo "========== Make hotpatch successfully ========== "
 }
 
+function check_branch_support(){
+    echo "========== Check whether Eulermaker supports the branch =========="
+    if [[ ${hotpatch_not_support} =~ ${branch} ]]; then
+	echo "Eulermaker not support ${branch} to make hotpatch."
+	exit 0
+    fi
+}
+
 function get_pr_commit(){
     echo "========== get pr commit =========="
     git clone https://gitee.com/openeuler/hotpatch_meta ${METADATA_PATH}/
@@ -87,6 +95,7 @@ function get_pr_commit(){
     echo ${hotmetadata_xml}
     branch=`echo $hotmetadata_path | awk -F '/' '{print $1}'`
     repo=`echo $hotmetadata_path | awk -F '/' '{print $2}'`
+    check_branch_support
     cd $WORKSPACE
 }
 
