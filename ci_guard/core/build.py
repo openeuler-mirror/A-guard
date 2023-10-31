@@ -130,11 +130,11 @@ class EbsBuildVerify(BuildMeta):
         base_dict = self.dict_data_constitute(
             self.origin_package, pr_id=self.pr_num, my_spec_type="my_specs"
         )
-        os_variant_name = (
-            OS_VARIANR_MAP.get(self.target_branch)
-            if OS_VARIANR_MAP.get(self.target_branch)
-            else "openEuler:22.09"
-        )
+        os_variant_name = ""
+        for key, value in OS_VARIANR_MAP.items():
+            if self.target_branch.endswith(key):
+                os_variant_name = value
+
         base_dict.update(
             {
                 "spec_branch": self.target_branch,
@@ -260,11 +260,11 @@ class EbsBuildVerify(BuildMeta):
         Returns:
             base_dict: Dictionary data after combination
         """
-        os_variant_name = (
-            OS_VARIANR_MAP.get(self.target_branch)
-            if OS_VARIANR_MAP.get(self.target_branch)
-            else "openEuler:22.09"
-        )
+        os_variant_name = ""
+        for key, value in OS_VARIANR_MAP.items():
+            if self.target_branch.endswith(key):
+                os_variant_name = value
+
         base_dict = {
             "project_type": "ci_soe",
             "build_targets": [
@@ -570,18 +570,20 @@ class EbsBuildVerify(BuildMeta):
         # Determine if a repository exists
         if not self._check_warehouse_exists(self.origin_package):
             raise RuntimeError(f"This {self.origin_package} repository does not exist")
-        logger.info("[INFO] Create project")
+        logger.info("================= Create project =================")
         self.create_project()
         # 2. Empty the project
-        logger.info("[INFO] Clear ebs project exist file")
+        logger.info("================= Clear ebs project exist file =================")
+        self.create_project()
         self.clear_project()
         # 3. Upload the pr package
-        logger.info("[INFO] Upload code")
+        logger.info("================= Upload code =================")
         self.operate_package_project(
             content=self.dict_data_constitute(self.origin_package, pr_id=self.pr_num)
         )
         # 4. Upload pr link package
         relation_prs = self.get_relation_link(self.pr_num, self.origin_package)
+        logger.info("================= start build =================")
         # 5. Triggers build
         build_id = (
             self.trigger_build()
@@ -597,6 +599,7 @@ class EbsBuildVerify(BuildMeta):
         packages_build_results = self.query_project_detail_result(
             build_detail, build_id
         )
+        logger.info("================= build finished =================")
 
         return packages_build_results
 
@@ -1476,5 +1479,5 @@ class BuildVerify:
         build_details = check_result.get("build_detail")
         for build_detail in build_details:
             log_url = build_detail.get("log_url").replace("http://172.16.1.108:30108/", "https://eulermaker.compass-ci.openeuler.openatom.cn/")
-            logger.info(f"The package's build detail url:'{log_url}'")
+            logger.info(f"The package's build log==>'{log_url}'")
         return check_result
