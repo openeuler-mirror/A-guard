@@ -18,22 +18,23 @@ import re
 class CompareVersion:
     @staticmethod
     def vr_compare(x_version, comparison_operator, y_version):
+        def normalize_version(version):
+            if "-" not in version:
+                version = re.split("-", version)[0]
+            if ":" not in version:
+                version = "0:" + version
+            return version
 
-        if "-" not in x_version or "-" not in y_version:
-            x_version = re.split("-", x_version)[0]
-            y_version = re.split("-", y_version)[0]
+        def split_version(version):
+            return re.split(r"\.|\:|\-", version)
 
-        if ":" not in x_version:
-            x_version = "0:" + x_version
-        if ":" not in y_version:
-            y_version = "0:" + y_version
+        x_version = normalize_version(x_version)
+        y_version = normalize_version(y_version)
 
-        version_array_x = re.split(r"\.|\:|\-", x_version)
-        version_array_y = re.split(r"\.|\:|\-", y_version)
-        len_x_version_array = len(version_array_x)
-        len_y_version_array = len(version_array_y)
-        len_min = min(len_x_version_array, len_y_version_array)
+        version_array_x = split_version(x_version)
+        version_array_y = split_version(y_version)
 
+        len_min = min(len(version_array_x), len(version_array_y))
         if version_array_x == version_array_y:
             if comparison_operator in ('EQ', 'GE', 'LE'):
                 return True
@@ -56,7 +57,7 @@ class CompareVersion:
             return False
 
         # If the numbers of the same length are equal
-        if len_x_version_array > len_min and comparison_operator in ('GT', 'GE') or \
-                len_y_version_array > len_min and comparison_operator in ('LT', 'LE'):
+        if len(version_array_x) > len_min and comparison_operator in ('GT', 'GE') or \
+                len(version_array_y) > len_min and comparison_operator in ('LT', 'LE'):
             return True
         return False
