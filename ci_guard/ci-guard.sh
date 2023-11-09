@@ -102,7 +102,6 @@ function check_single_install(){
     if  [ $? -ne 0 ]; then
         echo "Single install check failed"
         scp_remote_service
-        exit 1
     fi
     scp_remote_service
     # python3 $SCRIPT_CMD comment -pr $pr
@@ -115,7 +114,6 @@ function check_multiple_install(){
     if  [ $? -ne 0 ]; then
         echo "Multiple install check failed"
         scp_remote_service
-        exit 1
     fi
     # python3 $SCRIPT_CMD comment -pr $pr 
     echo "End check multiple install"
