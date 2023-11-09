@@ -141,6 +141,9 @@ class EbsBuildVerify(BuildMeta):
                 "build_targets": [
                     {"os_variant": os_variant_name, "architecture": self.arch}
                 ],
+                "users":{
+                    "admin": "maintainer"
+                },
             }
         )
         logger.info(f"BASE DICT:{base_dict}")

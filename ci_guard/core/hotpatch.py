@@ -181,6 +181,10 @@ class MakeHotPatchProject:
         Returns:
             base_dict: Dictionary data after combination
         """
+        extra_build_dep = ["syscare", "syscare-build", "aops-apollo-tool"]
+        if self.target_branch == "openEuler-23.09":
+            extra_build_dep.append("syscare-build-ebpf")
+
         base_dict = {
             'project_type': 'ci-hotpatch',
             "spec_branch": self.target_branch,
@@ -198,7 +202,7 @@ class MakeHotPatchProject:
             },
             "hotpatch_config": {
                 "package_repo": self.hotpatch_repo,
-                "extra_build_dep": ["syscare", "syscare-build", "syscare-build-ebpf", "aops-apollo-tool"],
+                "extra_build_dep": extra_build_dep,
                 "history_jobs": {
                     "aarch64": self.aarch_job_id,
                     "x86_64": self.x86_job_id
