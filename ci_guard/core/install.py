@@ -463,7 +463,7 @@ class UnifyBuildInstallVerify(InstallBase):
         except (KeyError, IndexError):
             logger.info("bootstrap_rpm_repo not exist")
             bootstrap_repo = []
-
+        logger.info("emsx = %s", emsx)
         return emsx, bootstrap_repo
 
     def _get_repo_id(self, build_id):
@@ -486,7 +486,7 @@ class UnifyBuildInstallVerify(InstallBase):
         repo_content = ""
         for repos in bootstrap_repo:
             repo_url = repos.get("repo")
-            ebs_server = "https://eulermaker.compass-ci.openeuler.openatom.cn/api"
+            ebs_server = f"{config.ebs_server}/api"
             ip_port_result = re.match("http://192.168.\d+.\d+:\d+", repo_url)
             if ip_port_result:
                 ip_port = ip_port_result.group(0)
@@ -519,6 +519,7 @@ gpgcheck=0
             return False
 
         repo_content = ""
+        logger.info("os_projest = %s", os_project)
         emsx, bootstrap_repo = self._get_emsx(os_project)
         for project, repo in repos.items():
             repo_content += f"""
