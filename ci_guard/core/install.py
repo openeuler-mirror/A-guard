@@ -467,6 +467,7 @@ class UnifyBuildInstallVerify(InstallBase):
         return emsx, bootstrap_repo
 
     def _get_repo_id(self, build_id):
+        ground_project_repo = {}
         cmds = f"ccb select builds build_id={build_id} -f repo_id,ground_projects"
         logger.info(cmds)
         code, out, error = command(cmds=cmds.split(), console=False)
@@ -477,10 +478,13 @@ class UnifyBuildInstallVerify(InstallBase):
         try:
             project_repo = build[0]["_source"]
             project_repo_id = project_repo["repo_id"]
-            ground_project_repo_id = [ground_project["repo_id"] for ground_project in project_repo["ground_projects"]]
+            for ground_project in project_repo["ground_projects"]:
+                ground_project_repo_id = ground_project["repo_id"]
+                ground_project_emsx = ground_project["emsx"]
+                ground_project_repo[ground_project_repo_id] = ground_project_emsx
         except (KeyError, IndexError):
             raise ValueError()
-        return project_repo_id, ground_project_repo_id
+        return project_repo_id, ground_project_repo
   
     def get_bootstrap_repo(self, bootstrap_repo):
         repo_content = ""
@@ -512,8 +516,9 @@ gpgcheck=0
                 build_id=build_id
             )
             repo_ids.append(project_repo_id)
-            repo_ids.extend(ground_project_repo_id)
+            repo_ids.extend(ground_project_repo_id.keys())
             repos = self._get_repos(repo_ids=repo_ids)
+            logger.info("ground_project_repo_id = %s", ground_project_repo_id)
         except (ValueError, IndexError, KeyError) as ebs_error:
             logger.error(ebs_error)
             return False
@@ -522,6 +527,7 @@ gpgcheck=0
         logger.info("os_projest = %s", os_project)
         emsx, bootstrap_repo = self._get_emsx(os_project)
         for project, repo in repos.items():
+            emsx = ground_project_repo_id.get(project, emsx)
             repo_content += f"""
 [{project}]
 name={project}
