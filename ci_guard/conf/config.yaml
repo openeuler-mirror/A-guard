@@ -57,3 +57,6 @@ build_env:
 build_id:
 # ebs website
 ebs_server: http://172.16.1.108:30108
+
+# code platform gitee/github
+platform: gitee

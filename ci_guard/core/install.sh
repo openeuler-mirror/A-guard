@@ -13,7 +13,7 @@
 
 COMMAND=$1
 INSTALL_LOG_DIR=${WORKSPACE}/install-logs
-FILESERVER_PATH="/repo/openeuler/src-openeuler/${tbranch}/${committer}/${repo}/${arch}/${prid}/${repo}_${prid}_${arch}_comment/$commentid"
+FILESERVER_PATH="/repo/openeuler/src-openeuler${tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/${repo}_${prid}_${arch}_comment/$commentid"
 
 function update_repo() {
     echo "=======================Start updating the repo source files====================="
@@ -41,6 +41,7 @@ function install_log_dir(){
 }
 
 function install_rpms() {
+    tail=$3
     install_log_dir
     install_root=${WORKSPACE}/install-root/${commentid}
     if [[ ! -d "$install_root" ]]; then

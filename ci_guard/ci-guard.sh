@@ -1,15 +1,22 @@
 #!/bin/bash
 JENKINS_HOME=/home/jenkins
 SCRIPT_CMD=${shell_path}/ci_guard/ci.py
-pr=https://gitee.com/${repo_owner}/${repo}/pulls/${prid}
 repo_comment="${repo}_${prid}_${arch}_comment"
 SCRIPT_PATCH=${shell_pathoe}/src/build
-fileserver_user_path="/repo/openeuler/src-openeuler/${tbranch}/${committer}/${repo}/${arch}/${prid}/${repo_comment}/$commentid"
+
+if [[ ${platform} == "github" ]]; then
+    repo_server_test_tail="-github"
+    pr=https://github.com/${repo_owner}/${repo}/pull/${prid}
+else
+    repo_server_test_tail=""
+    pr=https://gitee.com/${repo_owner}/${repo}/pull/${prid}
+fi
+
+fileserver_user_path="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/${repo_comment}/$commentid"
 
 function repo_owner_judge(){
     if [[ "${repo_owner}" == "" ]]; then
         repo_owner="src-openeuler"
-        repo_server_test_tail=""
     elif [[ "${repo_owner}" != "src-openeuler" && "${repo_owner}" != "openeuler" ]]; then
         repo_server_test_tail="-test"
     fi
@@ -58,6 +65,7 @@ function update_config(){
     sed -i "/^branch: */cbranch: ${tbranch}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^build_env: */cbuild_env: ${build_env}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^ebs_server: */cebs_server: ${ebs_server}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^platform: */cplatform: ${platform}" ${shell_path}/ci_guard/conf/config.yaml
     echo "End of synchronous config"
 }
 
@@ -154,7 +162,11 @@ function abi_compare(){
     pr_link='https://gitee.com/${repo_owner}/'${repo}'/pulls/'${prid}
     pr_commit_json_file="${WORKSPACE}/pr_commit_json_file"
     # comment_file="${repo}_${prid}_${arch}_comment"
-    curl https://gitee.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files?access_token=$GiteeToken >$pr_commit_json_file
+    if [[ ${platform} == "github" ]]; then
+        curl -L -H "Accept:application/vnd.github+json" -H "Authorization: Bearer $GithubToken" -H "X-GitHub-Api-Version:2022-11-28" https://api.github.com/repos/${repo_owner}/${repo}/pulls/${prid}/files >$pr_commit_json_file
+    else
+        curl https://gitee.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files?access_token=$GiteeToken >$pr_commit_json_file
+    fi
     compare_result="${repo}_${prid}_${arch}_compare_result"
     export PYTHONPATH=${shell_pathoe}
     if [[ ! "$(ls -A $old_dir | grep '.rpm')" || ! "$(ls -A $new_dir | grep '.rpm')" ]]; then
