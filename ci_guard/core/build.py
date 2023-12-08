@@ -109,9 +109,11 @@ class EbsBuildVerify(BuildMeta):
         self.arch = arch
         self.multiple = multiple
         self.ignore = ignore
+        self.platform = config.platform
         self.pull = Pull()
         self.api = Api()
         self.origin_package, self.pr_num = extract_repo_pull(pull_request)
+        self.agent = "https://gh-proxy.test.osinfra.cn"
 
     @property
     def test_project_name(self):
@@ -120,7 +122,39 @@ class EbsBuildVerify(BuildMeta):
         Returns:
             test_project_name: name of test project
         """
-        return f"{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
+        if self.platform == "github":
+            return f"github:{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
+        else:
+            return f"{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
+
+    @property
+    def platform_url(self):
+        """
+        platform url
+        Returns:
+            platform_url: github/gitee
+        """
+        if self.platform == "github":
+            return f"https://github.com"
+        else:
+            return f"https://gitee.com"
+    
+    @property
+    def os_variant(self):
+        """
+        os variant
+        Returns:
+            os_variant_name:         
+        """
+        if self.platform == "github":
+            os_variant_name = OS_VARIANR_MAP.get("openEuler-22.03-LTS-SP2")
+        else:
+            os_variant_name = ""
+            for key, value in OS_VARIANR_MAP.items():
+                if self.target_branch.endswith(key):
+                    os_variant_name = value
+
+        return os_variant_name
 
     def create_project(self):
         """
@@ -130,16 +164,11 @@ class EbsBuildVerify(BuildMeta):
         base_dict = self.dict_data_constitute(
             self.origin_package, pr_id=self.pr_num, my_spec_type="my_specs"
         )
-        os_variant_name = ""
-        for key, value in OS_VARIANR_MAP.items():
-            if self.target_branch.endswith(key):
-                os_variant_name = value
-
         base_dict.update(
             {
                 "spec_branch": self.target_branch,
                 "build_targets": [
-                    {"os_variant": os_variant_name, "architecture": self.arch}
+                    {"os_variant": self.os_variant, "architecture": self.arch}
                 ],
                 "users":{
                     "admin": "maintainer"
@@ -263,15 +292,10 @@ class EbsBuildVerify(BuildMeta):
         Returns:
             base_dict: Dictionary data after combination
         """
-        os_variant_name = ""
-        for key, value in OS_VARIANR_MAP.items():
-            if self.target_branch.endswith(key):
-                os_variant_name = value
-
         base_dict = {
             "project_type": "ci_soe",
             "build_targets": [
-                {"os_variant": os_variant_name, "architecture": self.arch}
+                {"os_variant": self.os_variant, "architecture": self.arch}
             ],
             "build_env_macros+": {
                 "skip_check": "n"
@@ -279,7 +303,7 @@ class EbsBuildVerify(BuildMeta):
             my_spec_type: [
                 {
                     "spec_name": spec_name,
-                    "spec_url": f"https://gitee.com/{config.warehouse_owner}/{spec_name}.git",
+                    "spec_url": f"{self.platform_url}/{config.warehouse_owner}/{spec_name}.git",
                     "spec_branch": self.target_branch,
                 }
             ]
@@ -520,7 +544,7 @@ class EbsBuildVerify(BuildMeta):
             "my_specs-": [
                 {
                     "spec_name": spec_name,
-                    "spec_url": f"https://gitee.com/{config.warehouse_owner}/{spec_name}.git",
+                    "spec_url": f"{self.platform_url}/{config.warehouse_owner}/{spec_name}.git",
                 }
                 for spec_name in spec_names
             ]
@@ -556,7 +580,7 @@ class EbsBuildVerify(BuildMeta):
             True or False: Presence returns true Non-existent returns false
         """
         if self.api._get(
-            f"https://gitee.com/{config.warehouse_owner}/{package_name}", text=True
+            f"{self.platform_url}/{config.warehouse_owner}/{package_name}", text=True
         ):
             return True
         return False
@@ -571,7 +595,7 @@ class EbsBuildVerify(BuildMeta):
             packages_build_results: packages build results
         """
         # Determine if a repository exists
-        if not self._check_warehouse_exists(self.origin_package):
+        if config.platform == "gitee" and not self._check_warehouse_exists(self.origin_package):
             raise RuntimeError(f"This {self.origin_package} repository does not exist")
         logger.info("================= Create project =================")
         self.create_project()

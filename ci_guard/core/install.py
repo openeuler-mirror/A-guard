@@ -37,8 +37,9 @@ class InstallBase:
     install_cmds = os.path.join(os.path.dirname(__file__), "install.sh")
 
     def __init__(self, arch, target_branch, ignore=False) -> None:
+        self._platform = config.platform
         comment = f"{config.repo}_{config.pr}_{arch}_comment/{config.commentid}"
-        self.log = f"http://{config.files_server}/src-openeuler/{target_branch}/{config.committer}/{config.repo}/{arch}/{config.pr}/{comment}/"
+        self.log = f"http://{config.files_server}/src-openeuler{self.platform_tail}/{target_branch}/{config.committer}/{config.repo}/{arch}/{config.pr}/{comment}/"
         self._arch = arch or config.arch
         self._pull = None
         self._repo = None
@@ -47,7 +48,17 @@ class InstallBase:
 
     @property
     def project(self):
-        return f"{config.branch}:{self._arch}:{self._repo}:{self._pull}"
+        if self._platform == "github":
+            return f"github:{config.branch}:{self._arch}:{self._repo}:{self._pull}"
+        else:
+            return f"{config.branch}:{self._arch}:{self._repo}:{self._pull}"
+
+    @property
+    def platform_tail(self):
+        if self._platform == "github":
+            return "-github"
+        else:
+            return ""
 
     @staticmethod
     def json_loads(json_str):
@@ -332,6 +343,7 @@ class InstallBase:
                     self.install_cmds,
                     "install_rpms",
                     constant.DOWNLOAD_RPM_DIR,
+                    self.platform_tail,
                 ]
             )
         # Single package installation, then directly check the results and update
@@ -464,6 +476,7 @@ class UnifyBuildInstallVerify(InstallBase):
             logger.info("bootstrap_rpm_repo not exist")
             bootstrap_repo = []
         logger.info("emsx = %s", emsx)
+
         return emsx, bootstrap_repo
 
     def _get_repo_id(self, build_id):
@@ -524,7 +537,6 @@ gpgcheck=0
             return False
 
         repo_content = ""
-        logger.info("os_projest = %s", os_project)
         emsx, bootstrap_repo = self._get_emsx(os_project)
         for project, repo in repos.items():
             emsx = ground_project_repo_id.get(project, emsx)
