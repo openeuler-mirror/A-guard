@@ -162,9 +162,7 @@ function abi_compare(){
     pr_link='https://gitee.com/${repo_owner}/'${repo}'/pulls/'${prid}
     pr_commit_json_file="${WORKSPACE}/pr_commit_json_file"
     # comment_file="${repo}_${prid}_${arch}_comment"
-    if [[ ${platform} == "github" ]]; then
-        curl -L -H "Accept:application/vnd.github+json" -H "Authorization: Bearer $GithubToken" -H "X-GitHub-Api-Version:2022-11-28" https://api.github.com/repos/${repo_owner}/${repo}/pulls/${prid}/files >$pr_commit_json_file
-    else
+    if [[ ${platform} != "github" ]]; then
         curl https://gitee.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files?access_token=$GiteeToken >$pr_commit_json_file
     fi
     compare_result="${repo}_${prid}_${arch}_compare_result"
