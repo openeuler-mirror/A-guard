@@ -460,6 +460,8 @@ class UnifyBuildInstallVerify(InstallBase):
 
         try:
             bootstrap_repo = repo[-1]["_source"]["bootstrap_rpm_repo"]
+            if not bootstrap_repo:
+                bootstrap_repo = []
         except (KeyError, IndexError):
             logger.info("bootstrap_rpm_repo not exist")
             bootstrap_repo = []
