@@ -212,6 +212,9 @@ EOF
 
         new_json_name=${repo}_${old_version}-${old_release}_${new_version}-${new_release}.json
         retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/report-$old_dir-$new_dir/osv.json root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/$new_json_name"
+        if [ -d $result_dir/details_analyse ]; then
+            retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/details_analyse root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/"
+        fi
     fi
     if [[ -d $new_dir && "$(ls -A $new_dir | grep '.rpm')" ]]; then
         retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $new_dir/* root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/"
