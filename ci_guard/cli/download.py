@@ -72,7 +72,7 @@ def ebs_binary_rpm_download(package, arch):
     if package == "kernel":
         package = "kernel:kernel"
     for project in projects:
-        cmds = f"ccb download os_project={project} packages={package} architecture={arch} -b all"
+        cmds = f"ccb download os_project={project} packages={package} architecture={arch} -d -b all"
         logger.info(f"ccb download:{cmds}")
         code, out, _ = command(
             cmds=cmds.split(), cwd=os.path.join(config.workspace, "old_rpms")
