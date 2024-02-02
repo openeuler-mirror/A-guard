@@ -101,6 +101,7 @@ function get_pr_commit(){
 
 function check_whether_multiple_packages(){
     echo "========== check whether multiple packages =========="
+    cd ${METADATA_PATH}
     patch_list=`git diff --name-status HEAD~1 HEAD~0 | grep "\.patch" |awk -F ' ' '{print $2}'`
 
     echo ${hotmetadata_path}
@@ -181,6 +182,7 @@ function check_whether_multiple_packages(){
 
     echo ${hotmetadata_xml}
     echo ${repo_path}
+    cd $WORKSPACE
 }
 
 
@@ -269,6 +271,8 @@ function comment_issue(){
 
     get_body=`curl -X GET --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/enterprises/open_euler/issues/'${issue_number}'?access_token='${token}`
     body=`echo ${get_body} |jq -r '.body'`
+    labels=`echo ${get_body} |jq -r '.labels[].name' | tr '[:space:]' ','`
+    labels="$labels,hotpatch"
 
     # 删除上次的热补丁路径
     issue_desc=`echo ${body}| sed 's/热补丁路径.*$//g'`
@@ -298,7 +302,7 @@ function comment_issue(){
 
     echo "comment hotpatch issue"
     body="${ques}\n${metadata}\n${hotpatch_str}\n${updateinfo_str}"
-    curl -X PATCH --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/enterprises/open_euler/issues/'${issue_number} -d '{"access_token":"'"${token}"'","repo":"'"${repo}"'","body":"'"${body}"'"}'
+    curl -X PATCH --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/enterprises/open_euler/issues/'${issue_number} -d '{"access_token":"'"${token}"'","repo":"'"${repo}"'","body":"'"${body}"'","labels":"'"${labels}"'"}'
 
 }
 
