@@ -173,6 +173,9 @@ class EbsBuildVerify(BuildMeta):
                 "users":{
                     "admin": "maintainer"
                 },
+                "build_env_macros+": {
+                    "skip_check": "n"
+                },
             }
         )
         logger.info(f"BASE DICT:{base_dict}")
@@ -297,9 +300,6 @@ class EbsBuildVerify(BuildMeta):
             "build_targets": [
                 {"os_variant": self.os_variant, "architecture": self.arch}
             ],
-            "build_env_macros+": {
-                "skip_check": "n"
-                },
             my_spec_type: [
                 {
                     "spec_name": spec_name,
@@ -608,6 +608,13 @@ class EbsBuildVerify(BuildMeta):
         self.operate_package_project(
             content=self.dict_data_constitute(self.origin_package, pr_id=self.pr_num)
         )
+        logger.info("================= Update skip_check =================")
+        content = {
+            "build_env_macros+": {
+                "skip_check": "n"
+                },
+        }
+        self.operate_package_project(content)
         # 4. Upload pr link package
         relation_prs = self.get_relation_link(self.pr_num, self.origin_package)
         logger.info("================= start build =================")
