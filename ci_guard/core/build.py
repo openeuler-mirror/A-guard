@@ -429,6 +429,7 @@ class EbsBuildVerify(BuildMeta):
                 JOB_UNKNOWN = 108 # install
                 JOB_CYCLE_SUCCESS = 109 # build/install
                 JOB_CYCLE_FAILED = 110 # build/install
+                JOB_OOM = 112 # build/install
                 JOB_FINAL = [JOB_SUCCESS, JOB_FAILED, JOB_EXCLUDED, JOB_ABORTED]
         project build code interpretation:
                 BUILD_BUILDING = 200
@@ -456,6 +457,7 @@ class EbsBuildVerify(BuildMeta):
             105,
             106,
             107,
+            112,
         ], [201, 202, 203, 205]
         package_statuses, project_statuses = [101], [200]
         logger.info("The packages under the project are building, please wait...")
@@ -492,6 +494,7 @@ class EbsBuildVerify(BuildMeta):
                     107,
                     108,
                     110,
+                    112,
                 ]:
                     resulte = "failed"
                 elif _detail.get("build", {}).get("status") == 106:
