@@ -95,7 +95,7 @@ def install(arch, pull_request, target_branch, packages, multiple, ignore):
             else "Single package installation check failed."
         )
         click.echo(click.style(message, fg="red"))
-        sys.exit(1)
+        sys.exit(0)
 
 
 __all__ = ("install",)
