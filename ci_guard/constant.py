@@ -69,6 +69,7 @@ BOOTSTRAP_MAP = {
         "http://192.168.137.75:20029": "ems1",
         "http://192.168.46.177:20029": "ems2",
         "http://192.168.164.96:20029": "ems3",
+        "http://192.168.86.7:20029": "ems4",
 }
 
 # abi change effects number
