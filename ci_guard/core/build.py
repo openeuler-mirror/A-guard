@@ -174,7 +174,8 @@ class EbsBuildVerify(BuildMeta):
                     "admin": "maintainer"
                 },
                 "build_env_macros+": {
-                    "skip_check": "n"
+                    "skip_check": "n",
+                    "runtime": 21600
                 },
             }
         )
@@ -614,7 +615,8 @@ class EbsBuildVerify(BuildMeta):
         logger.info("================= Update skip_check =================")
         content = {
             "build_env_macros+": {
-                "skip_check": "n"
+                "skip_check": "n",
+                "runtime": 21600
                 },
         }
         self.operate_package_project(content)
