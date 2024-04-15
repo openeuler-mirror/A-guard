@@ -419,26 +419,25 @@ class EbsBuildVerify(BuildMeta):
         """
         Query the compilation results of the package
         package build code interpretation:
-                JOB_BLOCKED = 100 # build
-                JOB_BUILDING = 101 # build
-                JOB_SIGNING = 102 # build
-                JOB_SUCCESS = 103 # build/install
-                JOB_FAILED = 104 # build/install
-                JOB_UNRESOLVABLE = 105 # build/install
-                JOB_EXCLUDED = 106 # build/install
-                JOB_ABORTED = 107 # build
-                JOB_UNKNOWN = 108 # install
-                JOB_CYCLE_SUCCESS = 109 # build/install
-                JOB_CYCLE_FAILED = 110 # build/install
-                JOB_OOM = 112 # build/install
-                JOB_FINAL = [JOB_SUCCESS, JOB_FAILED, JOB_EXCLUDED, JOB_ABORTED]
+                BLOCKED = 100 # build
+                BUILDING = 101 # build
+                SIGNING = 102 # build
+                SUCCESS = 103 # build/install
+                FAILED = 104 # build/install
+                UNRESOLVABLE = 105 # build/install
+                EXCLUDED = 106 # build/install
+                ABORTED = 107 # build
+                UNKNOWN = 108 # install
+                CYCLE_SUCCESS = 109 # build/install
+                CYCLE_FAILED = 110 # build/install
+                OOM = 112 # build/install
         project build code interpretation:
-                BUILD_BUILDING = 200
-                BUILD_SUCCESS = 201
-                BUILD_FAILED = 202
-                BUILD_ABORTED = 203
-                BUILD_BLOCKED = 204
-                BUILD_EXCLUDED = 205
+                BUILDING = 200
+                SUCCESS = 201
+                FAILED = 202
+                ABORTED = 203
+                BLOCKED = 204
+                EXCLUDED = 205
         Args:
             build_id: triger build id
         Returns:
