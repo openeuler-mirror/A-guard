@@ -364,6 +364,13 @@ function retry_command(){
     done
 }
 
+function print_job(){
+    job_name=`echo $JOB_NAME|sed -e 's#/#/job/#g'`
+    job_path="https://openeulerjenkins.osinfra.cn/job/${job_name}/$BUILD_ID/console"
+    body_str="${arch}架构构建及构建后检查：<a href=${job_path}>${JOB_NAME}/${BUILD_ID}/console</a>"
+    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/repos/src-openeuler/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${GiteeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
+}
+
 function main(){
     exclusive_arch=$arch
     support_arch_file=${repo}_${prid}_support_arch
@@ -385,10 +392,11 @@ function main(){
         update_config
      	if [ $build_env == 'ebs' ] ; then
             config_ebs
-	else
+	    else
             config_osc
             update_repo
         fi
+        print_job
         check_single_build
         check_single_install
         compare_difference
