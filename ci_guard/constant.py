@@ -60,6 +60,7 @@ MAINLINE_PROJECT_NAMES = [
 OS_VARIANR_MAP = {"openEuler-22.03-LTS-SP1": "openEuler:22.03-LTS-Next",
                   "openEuler-22.03-LTS-SP2": "openEuler:22.03-LTS-SP2",
                   "openEuler-22.03-LTS-SP3": "openEuler:22.03-LTS-SP3",
+                  "openEuler-22.03-LTS-SP4": "openEuler:22.03-LTS-SP4",
                   "openEuler-22.03-LTS-Next": "openEuler:22.03-lts-next-dailybuild",
                   "openEuler-20.03-LTS-SP4": "openEuler:20.03-LTS-SP4",
                   "openEuler-24.03-LTS": "openEuler:24.03-LTS",
