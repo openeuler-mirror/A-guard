@@ -22,6 +22,7 @@ from cli import (
     pull_link,
     download_rpm,
     init_repo,
+    license,
 )
 
 
@@ -77,6 +78,7 @@ class CiGroup(click.Group):
         self.add_command(pull_link)
         self.add_command(download_rpm)
         self.add_command(init_repo)
+        self.add_command(license)
 
     def main(self, *args, **kwargs):
         """

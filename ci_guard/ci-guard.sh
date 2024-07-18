@@ -137,7 +137,18 @@ function check_multiple_build(){
     fi
     # python3 $SCRIPT_CMD comment -pr $pr 
     echo "Multi package build succeeded"
-    
+}
+
+function check_license(){
+    echo "============ Start check license ============"
+    python3  $SCRIPT_CMD license -pr $pr -a $arch
+    if  [ $? -ne 0 ]; then
+        echo "Check package license failed"
+        scp_remote_service
+        exit 1
+    fi
+    scp_remote_service
+    echo "End check license"
 }
 
 function compare_difference(){
@@ -273,6 +284,7 @@ EOF
 }
 
 function oecp_compare(){
+    echo "========== Start oecp compare =========="
     old_dir="${WORKSPACE}/old_rpms/"
     new_dir="${WORKSPACE}/new_rpms/"
     result_dir="${WORKSPACE}/oecp_result"
@@ -316,6 +328,7 @@ function oecp_compare(){
         python3 ${JENKINS_HOME}/oecp/cli.py $old_dir $new_dir -o $result_dir -w $result_dir -n 2 -s $tbranch-${arch} --spec $BUILD_ROOT/home/abuild/rpmbuild/SOURCES --db-password ${MysqlUserPasswd:5} --pull-request-id ${repo}-${prid} || echo "continue although run oecp failed"
         cat $result_dir/report-$old_dir-$new_dir/osv.json
     fi
+    echo "End oecp compare"
 }
 
 function config_ebs(){
@@ -399,6 +412,7 @@ function main(){
         print_job
         check_single_build
         check_single_install
+        check_license
         compare_difference
         # 暂不支持多包编译
     #    check_multiple_build

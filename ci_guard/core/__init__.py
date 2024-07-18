@@ -53,6 +53,7 @@ class ProcessRecords:
     steps = [
         "single_build_check",
         "single_install_check",
+        "package_license_check",
         "diff_analysis",
         "multi_build_check",
         "multi_install_check",
