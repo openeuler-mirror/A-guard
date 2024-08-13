@@ -58,7 +58,7 @@ class CheckLicense:
         license_results = []
 
         data = dict(url=repo_url)
-        response = Api._post(self._license_url, data, timeout=120)
+        response = Api._post(self._license_url, data, timeout=600)
         if not response:
             logger.error(response)
             logger.error(f"Failed to check_license")
