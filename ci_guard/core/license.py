@@ -30,7 +30,7 @@ class CheckLicense:
         self._pull = None
         self._repo = None
         self._ebs_server = "https://eulermaker.compass-ci.openeuler.openatom.cn"
-        self._license_url = "https://sbom-repo-service.test.osinfra.cn/sbom-repo-api/licenseCheck"
+        self._license_url = f"{config.sbom_server}/sbom-repo-api/licenseCheck"
 
     def _record(self, license_results, steps):
         current_result = all(
@@ -58,7 +58,7 @@ class CheckLicense:
         license_results = []
 
         data = dict(url=repo_url)
-        response = Api._post(self._license_url, data, timeout=600)
+        response = Api._post(self._license_url, data, timeout=900)
         if not response:
             logger.error(response)
             logger.error(f"Failed to check_license")
