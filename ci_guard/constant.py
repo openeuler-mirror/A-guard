@@ -65,6 +65,7 @@ OS_VARIANR_MAP = {"openEuler-22.03-LTS-SP1": "openEuler:22.03-LTS-Next",
                   "openEuler-20.03-LTS-SP4": "openEuler:20.03-LTS-SP4",
                   "openEuler-24.03-LTS": "openEuler:24.03-LTS",
                   "openEuler-24.03-LTS-Next": "openEuler:24.03-LTS-Next",
+                  "openEuler-24.03-LTS-SP1": "openEuler:24.03-LTS-SP1",
                   "openEuler-24.09": "openEuler:24.09",
                   "master": "openEuler:mainline"}
 
