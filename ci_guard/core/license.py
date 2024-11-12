@@ -29,7 +29,7 @@ class CheckLicense:
         self._arch = arch or config.arch
         self._pull = None
         self._repo = None
-        self._ebs_server = "https://eulermaker.compass-ci.openeuler.openatom.cn"
+        self._ebs_server = config.ebs_server
         self._license_url = f"{config.sbom_server}/sbom-repo-api/licenseCheck"
 
     def _record(self, license_results, steps):
