@@ -30,7 +30,7 @@ GIT_FETCH = os.path.join(PROJECT_WORK_DIR, "pull-fetch")
 STOP_MAX_ATTEMPT_NUMBER = 3
 
 # The interval to wait during retry
-WAIT_FIXED = 2
+WAIT_FIXED = 30
 
 # Location for saving the downloaded rpm package
 DOWNLOAD_RPM_DIR = os.path.join(PROJECT_WORK_DIR, "rpms")
