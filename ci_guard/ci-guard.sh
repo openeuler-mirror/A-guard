@@ -386,7 +386,7 @@ function retry_command(){
 
 function print_job(){
     job_name=`echo $JOB_NAME|sed -e 's#/#/job/#g'`
-    job_path="https://openeulerjenkins.osinfra.cn/job/${job_name}/$BUILD_ID/console"
+    job_path="https://ci.openeuler.openatom.cn/job/${job_name}/$BUILD_ID/console"
     body_str="${arch}架构构建及构建后检查：<a href=${job_path}>${JOB_NAME}/${BUILD_ID}/console</a>"
     curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.gitcode.com/api/v5/repos/src-openeuler/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${gitcodeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
 }

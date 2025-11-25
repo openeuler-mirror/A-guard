@@ -309,7 +309,7 @@ function comment_issue(){
 function comment_job_info(){
     echo "========== comment job info =========="
     job_name=`echo $JOB_NAME|sed -e 's#/#/job/#g'`
-    job_path="https://openeulerjenkins.osinfra.cn/job/${job_name}/$BUILD_ID/console"
+    job_path="https://ci.openeuler.openatom.cn/job/${job_name}/$BUILD_ID/console"
     body_str="热补丁构建入口：<a href=${job_path}>multiarch/src-openeuler/syscare-patch/hotpatch_meta_ebs</a>，当前构建号为 $BUILD_ID"
     curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/repos/'${giteeTargetNamespace}'/'${giteeRepoName}'/pulls/'${giteePullRequestIid}'/comments' -d '{"access_token":"'"${token}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
 }
