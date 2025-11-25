@@ -351,6 +351,9 @@ GATEWAY_IP: 172.16.9.179
 GATEWAY_PORT: 30108
 ACCOUNT: xding
 PASSWORD: Xding@12#$
+MY_ACCOUNT: xding
+AUTH_CODE: Xding@12#$
+ENABLE_AUTH_CODE: 1
 OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
 OAUTH_REDIRECT_URL: http://eulermaker.openeuler.openatom.cn/oauth/
 PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
