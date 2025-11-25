@@ -341,19 +341,18 @@ function config_ebs(){
         mkdir -p ~/.config/cli/defaults
     fi
     cat >> ~/.config/cli/defaults/config.yaml <<EOF
-#SRV_HTTP_REPOSITORIES_HOST: 123.249.10.3
-SRV_HTTP_REPOSITORIES_HOST: 172.16.1.108
+SRV_HTTP_REPOSITORIES_HOST: 172.16.9.179
 SRV_HTTP_REPOSITORIES_PORT: 30108
 SRV_HTTP_REPOSITORIES_PROTOCOL: http://
-SRV_HTTP_RESULT_HOST: 172.16.1.108
+SRV_HTTP_RESULT_HOST: 172.16.9.179
 SRV_HTTP_RESULT_PORT: 30108
 SRV_HTTP_RESULT_PROTOCOL: http://
-GATEWAY_IP: 172.16.1.108
+GATEWAY_IP: 172.16.9.179
 GATEWAY_PORT: 30108
 ACCOUNT: ${OauthAccount}
 PASSWORD: ${OauthPassword}
 OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
-OAUTH_REDIRECT_URL: http://eulermaker.compass-ci.openeuler.openatom.cn/oauth/
+OAUTH_REDIRECT_URL: http://eulermaker.openeuler.openatom.cn/oauth/
 PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
 
 EOF
