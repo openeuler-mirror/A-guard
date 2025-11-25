@@ -364,6 +364,8 @@ EOF
     echo "The ebs configuration is complete."
     cat ~/.config/cli/defaults/config.yaml
     which ccb
+    env| grep lkp
+    cat /home/jenkins/lkp-tests/sbin/cli/ccb_common.rb
 }
 
 function retry_command(){
