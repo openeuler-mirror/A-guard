@@ -204,6 +204,7 @@ class EbsBuildVerify(BuildMeta):
         """
         code, output, error = command(cmds, console=False, synchronous=False)
         try:
+            logger.warning("the create project response is {}".format(output))
             response = json.loads(output)
             if isinstance(response, list):
                 response = {"code": "0", "data": response, "msg": None}
@@ -264,8 +265,7 @@ class EbsBuildVerify(BuildMeta):
             with self.update_package_operation(
                 content, operate_project_cmds, _json_path
             ) as response:
-                logger.warning("the create project response is {}".format(response))
-                logger.info(f"{response.get('data') or response.get('msg')}")
+                logger.debug(f"{response.get('data') or response.get('msg')}")
         except (TypeError, OSError, IOError, PermissionError) as error:
             raise RuntimeError(f"Failed to update project, because {error}")
 
