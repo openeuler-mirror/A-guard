@@ -349,8 +349,8 @@ SRV_HTTP_RESULT_PORT: 30108
 SRV_HTTP_RESULT_PROTOCOL: http://
 GATEWAY_IP: 172.16.9.179
 GATEWAY_PORT: 30108
-ACCOUNT: xding
-PASSWORD: Xding@12#$
+#ACCOUNT: xding
+#PASSWORD: Xding@12#$
 MY_ACCOUNT: xding
 AUTH_CODE: Xding@12#$
 ENABLE_AUTH_CODE: 1
@@ -363,6 +363,7 @@ EOF
     source $HOME/.${SHELL##*/}rc
     echo "The ebs configuration is complete."
     cat ~/.config/cli/defaults/config.yaml
+    which ccb
 }
 
 function retry_command(){

@@ -204,7 +204,7 @@ class EbsBuildVerify(BuildMeta):
         """
         code, output, error = command(cmds, console=False, synchronous=False)
         try:
-            logger.warning("the create project response is {}".format(output))
+            logger.warning("the create project output is {} and error is {}".format(output, error))
             response = json.loads(output)
             if isinstance(response, list):
                 response = {"code": "0", "data": response, "msg": None}
