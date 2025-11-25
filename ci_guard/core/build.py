@@ -467,6 +467,7 @@ class EbsBuildVerify(BuildMeta):
             time.sleep(10)
             package_statuses = list()
             build_project_result = self._command_result(query_build_project_cmds)
+            logger.info("the build_project_result is {}".format(build_project_result))
             for build_packages in build_project_result["data"]:
                 for _detail in (
                     build_packages.get("_source", {}).get("build_packages", {}).values()
