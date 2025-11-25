@@ -86,7 +86,7 @@ class CheckLicense:
             logger.error("unkown_list = %s", unknow_list)
         if not_allow_list or unknow_list:
             logger.error('Check license failed, please refer to this document to handle license:'
-                    '"https://gitee.com/openeuler/compliance/blob/master/doc/rectification/license-rectification.md"')
+                    '"https://gitcode.com/openeuler/compliance/blob/master/doc/rectification/license-rectification.md"')
         else:
             logger.info("Check license successful.")
 

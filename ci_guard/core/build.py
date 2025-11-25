@@ -25,9 +25,8 @@ from logger import logger
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from api.build_env import OpenBuildService
-from api.gitee import Gitee
+from api.gitcode import Gitcode
 from conf import config
-from .install import UnifyBuildInstallVerify
 from command import command
 from contextlib import contextmanager
 from json import JSONDecodeError
@@ -132,12 +131,14 @@ class EbsBuildVerify(BuildMeta):
         """
         platform url
         Returns:
-            platform_url: github/gitee
+            platform_url: github/gitee/gitcode
         """
         if self.platform == "github":
             return f"https://github.com"
-        else:
+        elif self.platform == "gitee":
             return f"https://gitee.com"
+        else:
+            return f"https://gitcode.com"
     
     @property
     def os_variant(self):
@@ -744,7 +745,7 @@ class ObsBuildVerify(BuildMeta):
     Package build check
     """
 
-    src_openeuler_ulr = "https://gitee.com/src-openeuler"
+    src_openeuler_ulr = "https://gitcode.com/src-openeuler"
 
     def __init__(
         self,
@@ -765,7 +766,7 @@ class ObsBuildVerify(BuildMeta):
         self.arch = arch
         self.p_project = ProjectMapping()
         self.origin_package, self.pr_num = extract_repo_pull(pull_request)
-        self.gitee = Gitee(self.origin_package)
+        self.gitcode = Gitcode(self.origin_package)
         self.target_branch = target_branch
         self.multiple = multiple
         self.ignore = ignore
@@ -1179,8 +1180,8 @@ class ObsBuildVerify(BuildMeta):
                             GIT_FETCH, "code"
                         )  # kernel special logical
                     else:
-                        gitee_repo = re.sub(r"\.git", "", param.text.split("/")[-1])
-                        param.text = "{}/{}".format(GIT_FETCH, gitee_repo)
+                        gitcode_repo = re.sub(r"\.git", "", param.text.split("/")[-1])
+                        param.text = "{}/{}".format(GIT_FETCH, gitcode_repo)
 
         logger.info("after update meta------")
 
@@ -1424,7 +1425,7 @@ class ObsBuildVerify(BuildMeta):
         """
         package_build_results = dict()
         for sig_build_result in build_results:
-            package_committer = self.gitee.package_committer(
+            package_committer = self.gitcode.package_committer(
                 [sig_build_result.get("package")]
             )
             package_build_results.update(

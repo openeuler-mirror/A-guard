@@ -20,7 +20,7 @@ from core import extract_repo_pull
 from core.analysis import Analysis
 from pyrpm.spec import Spec, replace_macros
 from constant import STOP_MAX_ATTEMPT_NUMBER, WAIT_FIXED, GIT_FETCH
-from api.gitee import Gitee
+from api.gitcode import Gitcode
 from sql import Mysql
 from logger import logger
 from command import command
@@ -38,8 +38,8 @@ class Pull:
 
     @staticmethod
     def _pull_comment(pr, repo, body):
-        gitee_api = Gitee(repo=repo)
-        gitee_api.create_pr_comment(number=pr, body=body)
+        gitcode_api = Gitcode(repo=repo)
+        gitcode_api.create_pr_comment(number=pr, body=body)
 
     @retry(
         retry_on_result=lambda result: result is False,
@@ -63,13 +63,13 @@ class Pull:
                 return False
 
     def _pre_check_link(self, target_repo, target_pr, pr_number, source_repo):
-        pr_info = Gitee(repo=target_repo).get_single_pr_info(number=target_pr)
+        pr_info = Gitcode(repo=target_repo).get_single_pr_info(number=target_pr)
         if not pr_info:
             logger.warning(f"Target pr info not found: {target_pr}.")
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 目标PR不存在:https://gitee.com/src-openeuler/{target_repo}/pulls/{target_pr}",
+                f"> 目标PR不存在:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr}",
             )
             return dict(link_result="failed", detail="目标PR不存在")
         if pr_info.get("state") == "merged":
@@ -77,7 +77,7 @@ class Pull:
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 目标PR已合入:https://gitee.com/src-openeuler/{target_repo}/pulls/{target_pr}",
+                f"> 目标PR已合入:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr}",
             )
             return dict(link_result="failed", detail="目标PR已合入")
         if pr_info.get("state") == "close":
@@ -85,10 +85,10 @@ class Pull:
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 目标PR关闭:https://gitee.com/src-openeuler/{target_repo}/pulls/{target_pr}",
+                f"> 目标PR关闭:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr}",
             )
             return dict(link_result="failed", detail="目标PR关闭")
-        url = f"https://gitee.com/src-openeuler/{source_repo}/"
+        url = f"https://gitcode.com/src-openeuler/{source_repo}/"
         package_name = self.parse_spec_name(url, pr_number, source_repo).replace(
             "python-", "python3-"
         )
@@ -105,7 +105,7 @@ class Pull:
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 待关联的PR不存在依赖:https://gitee.com/src-openeuler/{target_repo}/pulls/{target_pr}",
+                f"> 待关联的PR不存在依赖:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr}",
             )
             return dict(link_result="failed", detail="待关联的PR之间不存在依赖关系")
 
@@ -214,7 +214,7 @@ class Pull:
                 _pr, _repo = exists_link["link_pr"], exists_link["link_repo"]
             else:
                 _pr, _repo = exists_link["source_pr"], exists_link["source_repo"]
-            msg = f"源PR已存在关联关系:https://gitee.com/src-openeuler/{_repo}/pulls/{_pr} 请联系对应仓maintainer确认"
+            msg = f"源PR已存在关联关系:https://gitcode.com/src-openeuler/{_repo}/pulls/{_pr} 请联系对应仓maintainer确认"
             logger.warning(msg)
             self._pull_comment(pr_number, source_repo, msg)
             return dict(link_result="failed", detail=msg)
@@ -224,7 +224,7 @@ class Pull:
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 目标Pr:https://gitee.com/src-openeuler/{target_repo}/pulls/{target_pr} 已关联",
+                f"> 目标Pr:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr} 已关联",
             )
         except retrying.RetryError:
             logger.error(
@@ -233,16 +233,16 @@ class Pull:
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 目标PR关联错误:https://gitee.com/src-openeuler/{target_repo}/pulls/{target_pr}",
+                f"> 目标PR关联错误:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr}",
             )
             return dict(link_result="failed", detail="目标PR关联错误")
 
         for repo, pull in {source_repo: pr_number, target_repo: target_pr}.items():
-            Gitee(repo=repo).create_tag(pr_number=pull, body=["linkpull"])
+            Gitcode(repo=repo).create_tag(pr_number=pull, body=["linkpull"])
 
         return dict(
             link_result="success",
-            detail=f"目标Pr:https://gitee.com/src-openeuler/{target_repo}/pulls/{target_pr} 已关联",
+            detail=f"目标Pr:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr} 已关联",
         )
 
     def relation_verify(self, pr_number, repo):
@@ -290,7 +290,7 @@ class Pull:
                 number = pr_link_info["source_pr"]
                 repo = pr_link_info["source_repo"]
                 link = "be_link_pr"
-            pr_info = Gitee(repo=repo).get_single_pr_info(number=number)
+            pr_info = Gitcode(repo=repo).get_single_pr_info(number=number)
             relations[link].append(
                 {
                     "status": pr_info.get("state") if pr_info else "unknow",
@@ -364,7 +364,7 @@ class Pull:
         )
         for repo, link_status in breadth_tree_nodes["link_merged"].items():
             pull_link = (
-                f"https://gitee.com/src-openeuler/{repo}/pulls/{link_status['pr']}"
+                f"https://gitcode.com/src-openeuler/{repo}/pulls/{link_status['pr']}"
             )
             if link_status["tag"] == self.merge_tags:
                 meet_merge.add(pull_link)
@@ -394,7 +394,7 @@ class Pull:
     def _merge_pull(self, pull):
         repo, _pr = extract_repo_pull(pull)
         self.del_pull_link(_pr, repo)
-        if not Gitee(repo=repo).remove_tag(_pr, "linkpull"):
+        if not Gitcode(repo=repo).remove_tag(_pr, "linkpull"):
             self._pull_comment(
                 _pr,
                 repo,
@@ -406,7 +406,7 @@ class Pull:
         """
         Link pull merged
         """
-        tags = Gitee(repo=repo).get_all_tag(
+        tags = Gitcode(repo=repo).get_all_tag(
             pr_number=pr_number, body=dict(page=1, per_page=100)
         )
         if not tags:
@@ -452,7 +452,7 @@ class Pull:
         """
         merged_pulls = self._can_merge(repo, pr_number)
         merged_pulls["meet_merge"].add(
-            f"https://gitee.com/src-openeuler/{repo}/pulls/{pr_number}"
+            f"https://gitcode.com/src-openeuler/{repo}/pulls/{pr_number}"
         )
         # delete link tag
         merged_pulls["meet_merge"].update(merged_pulls["inconformity_merge"])
@@ -484,7 +484,7 @@ class Pull:
                 kernel_tag,
                 "--depth",
                 "1",
-                f"https://{config.giteeuser}:{config.gitpassword}@gitee.com/openeuler/kernel",
+                f"https://gitcode.com/openeuler/kernel",
                 os.path.join(GIT_FETCH, "code", repo),
             ],
             cwd=os.path.join(GIT_FETCH),

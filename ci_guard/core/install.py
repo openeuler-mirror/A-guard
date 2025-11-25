@@ -15,7 +15,7 @@ import json
 import re
 import yaml
 from pathlib import Path
-from api.gitee import Gitee
+from api.gitcode import Gitcode
 from logger import logger
 from command import command
 from core import (
@@ -168,12 +168,11 @@ class InstallBase:
         installed_failed_rpms = dict()
         repo_rpm_map = self.repo_rpm_map()
         for package in archive_rpms:
-            gitee_api = Gitee(repo=package)
+            gitcode_api = Gitcode(repo=package)
             binary_rpms = repo_rpm_map.get(package, set())
             status = "success" if not binary_rpms.intersection(failed) else "failed"
-            commitor = gitee_api.package_committer(
-                package_names=[package],
-                gitee_branch=self._target_branch,
+            commitor = gitcode_api.package_committer(
+                package_names=[package]
             )
             if status == "failed":
                 installed_failed_rpms[package] = False if package in rpms else True

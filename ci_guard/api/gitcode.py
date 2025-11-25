@@ -85,7 +85,7 @@ class Gitcode(Api):
                     if pkg_name in repo:
                         maintainer = con["maintainer_info"][0]
                         commiters[pkg_name] = dict(
-                            name=maintainer.get("gitcode_id"),
+                            name=maintainer.get("gitee_id"),
                             email=maintainer.get("email"),
                             sig=con.get("sig_name"),
                         )
