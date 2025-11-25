@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 JENKINS_HOME=/home/jenkins
 SCRIPT_CMD=${shell_path}/ci_guard/ci.py
 repo_comment="${repo}_${prid}_${arch}_comment"
