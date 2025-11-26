@@ -21,8 +21,6 @@ fileserver_user_path="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tb
 function repo_owner_judge(){
     if [[ "${repo_owner}" == "" ]]; then
         repo_owner="src-openeuler"
-    elif [[ "${repo_owner}" != "src-openeuler" && "${repo_owner}" != "openeuler" ]]; then
-        repo_server_test_tail="-test"
     fi
 fileserver_tmpfile_path="/repo/soe${repo_server_test_tail}/check_item"
 }
@@ -147,9 +145,7 @@ function
 check_license(){
     echo "============ Start check license ============"
     python3  $SCRIPT_CMD license -pr $pr -a $arch
-    if  [ $? -n
-
-    e 0 ]; then
+    if  [ $? -ne 0 ]; then
         echo "Check package license failed"
         scp_remote_service
         exit 1
