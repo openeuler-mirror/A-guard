@@ -378,16 +378,17 @@ function print_job(){
 
 function main(){
     exclusive_arch=$arch
-    support_arch_file=${repo}_${prid}_support_arch
-    retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${repo_server}:/repo/soe${repo_server_test_tail}/support_arch/${support_arch_file} ."
-    ls -l .
-    if [[ -e ${support_arch_file} ]]; then
-      support_arch=`cat ${support_arch_file}`
-      if [[ $support_arch != *$arch* ]]
-      then
-        exclusive_arch=""
-      fi
-    fi
+    # 当前repo服务器没有support arch 文件，不再做这个判断
+#    support_arch_file=${repo}_${prid}_support_arch
+#    retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${repo_server}:/repo/soe${repo_server_test_tail}/support_arch/${support_arch_file} ."
+#    ls -l .
+#    if [[ -e ${support_arch_file} ]]; then
+#      support_arch=`cat ${support_arch_file}`
+#      if [[ $support_arch != *$arch* ]]
+#      then
+#        exclusive_arch=""
+#      fi
+#    fi
 
     if [[ $exclusive_arch ]]; then
         echo "exclusive_arch not empty"
