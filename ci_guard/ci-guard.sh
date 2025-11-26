@@ -341,21 +341,18 @@ function config_ebs(){
         mkdir -p ~/.config/cli/defaults
     fi
     cat >> ~/.config/cli/defaults/config.yaml <<EOF
-SRV_HTTP_REPOSITORIES_HOST: 172.16.9.179
+SRV_HTTP_REPOSITORIES_HOST: 172.16.1.108
 SRV_HTTP_REPOSITORIES_PORT: 30108
 SRV_HTTP_REPOSITORIES_PROTOCOL: http://
-SRV_HTTP_RESULT_HOST: 172.16.9.179
+SRV_HTTP_RESULT_HOST: 172.16.1.108
 SRV_HTTP_RESULT_PORT: 30108
 SRV_HTTP_RESULT_PROTOCOL: http://
-GATEWAY_IP: 172.16.9.179
+GATEWAY_IP: 172.16.1.108
 GATEWAY_PORT: 30108
-ACCOUNT: xding
-PASSWORD: Xding@12#$
-MY_ACCOUNT: xding
-AUTH_CODE: Xding@12#$
-ENABLE_AUTH_CODE: 1
+ACCOUNT: ${OauthAccount}
+PASSWORD: ${OauthPassword}
 OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
-OAUTH_REDIRECT_URL: http://eulermaker.openeuler.openatom.cn/oauth/
+OAUTH_REDIRECT_URL: http://eulermaker.compass-ci.openeuler.openatom.cn/oauth/
 PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
 
 EOF
@@ -363,9 +360,6 @@ EOF
     source $HOME/.${SHELL##*/}rc
     echo "The ebs configuration is complete."
     cat ~/.config/cli/defaults/config.yaml
-    which ccb
-    env| grep lkp
-    cat /home/jenkins/lkp-tests/sbin/cli/ccb_common.rb
 }
 
 function retry_command(){
