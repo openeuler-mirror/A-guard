@@ -141,8 +141,7 @@ function check_multiple_build(){
     echo "Multi package build succeeded"
 }
 
-function
-check_license(){
+function check_license(){
     echo "============ Start check license ============"
     python3  $SCRIPT_CMD license -pr $pr -a $arch
     if  [ $? -ne 0 ]; then
