@@ -314,7 +314,7 @@ class EbsBuildVerify(BuildMeta):
         }
         base_dict.update(
             #package_overrides={spec_name: {"pr_id": pr_id}}
-            package_overrides={spec_name: {"pr_id": 679}}
+            package_overrides={spec_name: {"pr_id": "679"}}
         ) if pr_id else base_dict
         return base_dict
 
