@@ -121,8 +121,8 @@ class EbsBuildVerify(BuildMeta):
         Returns:
             test_project_name: name of test project
         """
-        if self.platform == "github":
-            return f"github:{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
+        if self.platform:
+            return f"{self.platform}:{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
         else:
             return f"{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
 
@@ -470,7 +470,7 @@ class EbsBuildVerify(BuildMeta):
             time.sleep(10)
             package_statuses = list()
             build_project_result = self._command_result(query_build_project_cmds)
-            logger.info("the build_project_result is {}".format(build_project_result))
+            logger.debug("the build_project_result is {}".format(build_project_result))
             for build_packages in build_project_result["data"]:
                 for _detail in (
                     build_packages.get("_source", {}).get("build_packages", {}).values()

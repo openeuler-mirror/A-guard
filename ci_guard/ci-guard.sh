@@ -143,10 +143,13 @@ function check_multiple_build(){
     echo "Multi package build succeeded"
 }
 
-function check_license(){
+function
+check_license(){
     echo "============ Start check license ============"
     python3  $SCRIPT_CMD license -pr $pr -a $arch
-    if  [ $? -ne 0 ]; then
+    if  [ $? -n
+
+    e 0 ]; then
         echo "Check package license failed"
         scp_remote_service
         exit 1
@@ -160,21 +163,11 @@ function compare_difference(){
     # oecp文件调用比对
     oecp_compare
     abi_compare
-
-    # if [[ -e $result_dir/report-$old_dir-$new_dir/osv.json ]]; then
-    #     python3 $SCRIPT_CMD analysis -df $result_dir/report-$old_dir-$new_dir/osv.json
-    #     if [ $? -ne 0 ]; then
-    #         echo "No need to verify change impact."
-    #         scp_remote_service
-    #         exit 0
-    #     fi
-    # fi
-    # python3 $SCRIPT_CMD comment -pr $pr 
     echo "Change impact needs to be verified."
 }
 
 function abi_compare(){
-    pr_link='https://gitcode.com/${repo_owner}/'${repo}'/pulls/'${prid}
+    pr_link='https://gitcode.com/'${repo_owner}/${repo}'/pulls/'${prid}
     pr_commit_json_file="${WORKSPACE}/pr_commit_json_file"
     # comment_file="${repo}_${prid}_${arch}_comment"
     if [[ ${platform} != "github" ]]; then
