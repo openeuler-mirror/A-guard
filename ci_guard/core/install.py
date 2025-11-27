@@ -458,7 +458,6 @@ class UnifyBuildInstallVerify(InstallBase):
     def _get_emsx(self, project):
         cmds = f"ccb select projects os_project={project}"
         code, cmd_out, error = command(cmds=cmds.split(), console=False)
-        logger.info("the project and output in _get_emsx are {} {}".format(project, cmd_out))
         if code:
             logger.error(
                 f"Failed to get the project info,command: {cmds} error: {error}"
