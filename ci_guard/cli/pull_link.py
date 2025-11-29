@@ -130,7 +130,7 @@ def pull_link(behavior, pr, target_pr):
         click.echo(click.style("Not a correct PR link", fg="red"))
         click.echo(
             click.style(
-                "For example: https://gitcode.com/openeuler/community/pulls/1", fg="green"
+                "For example: https://gitcode.com/openeuler/community/pull/1", fg="green"
             )
         )
         exit(1)

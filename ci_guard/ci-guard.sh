@@ -10,7 +10,7 @@ if [[ ${platform} == "github" ]]; then
     pr=https://github.com/${repo_owner}/${repo}/pull/${prid}
 elif [[ ${platform} == "gitee" ]]; then
     repo_server_test_tail=""
-    pr=https://gitee.com/${repo_owner}/${repo}/pull/${prid}
+    pr=https://gitee.com/${repo_owner}/${repo}/pulls/${prid}
 else
     repo_server_test_tail=""
     pr=https://gitcode.com/${repo_owner}/${repo}/pull/${prid}
@@ -49,6 +49,7 @@ EOF
 function update_config(){
     echo "============ Start synchronizing jenkin environment variables ============"
     sed -i "/^gitcode_token: */cgitcode_token: ${gitcodeToken}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^gitee_token: */cgitee_token: ${GiteeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^requires_repo: */crequires_repo: ${buddy}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^build_env_account: */cbuild_env_account: ${OBSSecondaryUserName}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^build_env_passwd: */cbuild_env_passwd: ${OBSSecondaryPassword}" ${shell_path}/ci_guard/conf/config.yaml
@@ -162,7 +163,7 @@ function compare_difference(){
 }
 
 function abi_compare(){
-    pr_link='https://gitcode.com/'${repo_owner}/${repo}'/pulls/'${prid}
+    pr_link='https://gitcode.com/'${repo_owner}/${repo}'/pull/'${prid}
     pr_commit_json_file="${WORKSPACE}/pr_commit_json_file"
     # comment_file="${repo}_${prid}_${arch}_comment"
     if [[ ${platform} != "github" ]]; then
@@ -328,6 +329,7 @@ function config_ebs(){
     if [ ! -d ~/.config/cli/defaults ]; then
         mkdir -p ~/.config/cli/defaults
     fi
+    # need to switch to new EulerMaker
     cat >> ~/.config/cli/defaults/config.yaml <<EOF
 SRV_HTTP_REPOSITORIES_HOST: 172.16.1.108
 SRV_HTTP_REPOSITORIES_PORT: 30108

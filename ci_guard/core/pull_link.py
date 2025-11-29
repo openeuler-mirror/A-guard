@@ -69,7 +69,7 @@ class Pull:
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 目标PR不存在:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr}",
+                f"> 目标PR不存在:https://gitcode.com/src-openeuler/{target_repo}/pull/{target_pr}",
             )
             return dict(link_result="failed", detail="目标PR不存在")
         if pr_info.get("state") == "merged":
@@ -77,7 +77,7 @@ class Pull:
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 目标PR已合入:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr}",
+                f"> 目标PR已合入:https://gitcode.com/src-openeuler/{target_repo}/pull/{target_pr}",
             )
             return dict(link_result="failed", detail="目标PR已合入")
         if pr_info.get("state") == "close":
@@ -85,7 +85,7 @@ class Pull:
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 目标PR关闭:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr}",
+                f"> 目标PR关闭:https://gitcode.com/src-openeuler/{target_repo}/pull/{target_pr}",
             )
             return dict(link_result="failed", detail="目标PR关闭")
         url = f"https://gitcode.com/src-openeuler/{source_repo}/"
@@ -105,7 +105,7 @@ class Pull:
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 待关联的PR不存在依赖:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr}",
+                f"> 待关联的PR不存在依赖:https://gitcode.com/src-openeuler/{target_repo}/pull/{target_pr}",
             )
             return dict(link_result="failed", detail="待关联的PR之间不存在依赖关系")
 
@@ -214,7 +214,7 @@ class Pull:
                 _pr, _repo = exists_link["link_pr"], exists_link["link_repo"]
             else:
                 _pr, _repo = exists_link["source_pr"], exists_link["source_repo"]
-            msg = f"源PR已存在关联关系:https://gitcode.com/src-openeuler/{_repo}/pulls/{_pr} 请联系对应仓maintainer确认"
+            msg = f"源PR已存在关联关系:https://gitcode.com/src-openeuler/{_repo}/pull/{_pr} 请联系对应仓maintainer确认"
             logger.warning(msg)
             self._pull_comment(pr_number, source_repo, msg)
             return dict(link_result="failed", detail=msg)
@@ -224,7 +224,7 @@ class Pull:
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 目标Pr:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr} 已关联",
+                f"> 目标Pr:https://gitcode.com/src-openeuler/{target_repo}/pull/{target_pr} 已关联",
             )
         except retrying.RetryError:
             logger.error(
@@ -233,7 +233,7 @@ class Pull:
             self._pull_comment(
                 pr_number,
                 source_repo,
-                f"> 目标PR关联错误:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr}",
+                f"> 目标PR关联错误:https://gitcode.com/src-openeuler/{target_repo}/pull/{target_pr}",
             )
             return dict(link_result="failed", detail="目标PR关联错误")
 
@@ -242,7 +242,7 @@ class Pull:
 
         return dict(
             link_result="success",
-            detail=f"目标Pr:https://gitcode.com/src-openeuler/{target_repo}/pulls/{target_pr} 已关联",
+            detail=f"目标Pr:https://gitcode.com/src-openeuler/{target_repo}/pull/{target_pr} 已关联",
         )
 
     def relation_verify(self, pr_number, repo):
@@ -364,7 +364,7 @@ class Pull:
         )
         for repo, link_status in breadth_tree_nodes["link_merged"].items():
             pull_link = (
-                f"https://gitcode.com/src-openeuler/{repo}/pulls/{link_status['pr']}"
+                f"https://gitcode.com/src-openeuler/{repo}/pull/{link_status['pr']}"
             )
             if link_status["tag"] == self.merge_tags:
                 meet_merge.add(pull_link)
@@ -452,7 +452,7 @@ class Pull:
         """
         merged_pulls = self._can_merge(repo, pr_number)
         merged_pulls["meet_merge"].add(
-            f"https://gitcode.com/src-openeuler/{repo}/pulls/{pr_number}"
+            f"https://gitcode.com/src-openeuler/{repo}/pull/{pr_number}"
         )
         # delete link tag
         merged_pulls["meet_merge"].update(merged_pulls["inconformity_merge"])
