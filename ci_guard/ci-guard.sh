@@ -343,6 +343,7 @@ ACCOUNT: xding
 PASSWORD: Xding@12#$
 MY_ACCOUNT: xding
 AUTH_CODE: Xding@12#$
+ENABLE_AUTH_CODE: 1
 OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
 OAUTH_REDIRECT_URL: http://eulermaker.compass-ci.openeuler.openatom.cn/oauth/
 PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
