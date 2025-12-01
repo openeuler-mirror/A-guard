@@ -305,17 +305,17 @@ class EbsBuildVerify(BuildMeta):
             my_spec_type: [
                 {
                     "spec_name": spec_name,
-                    #"spec_url": f"{self.platform_url}/{config.warehouse_owner}/{spec_name}.git",
+                    "spec_url": f"{self.platform_url}/{config.warehouse_owner}/{spec_name}.git",
                     # just for test
-                    "spec_url": f"https://gitee.com/src-openeuler/syscontainer-tools.git",
+                    #"spec_url": f"https://gitee.com/src-openeuler/syscontainer-tools.git",
                     "spec_branch": self.target_branch,
                 }
             ]
         }
         base_dict.update(
-            #package_overrides={spec_name: {"pr_id": pr_id}}
+            package_overrides={spec_name: {"pr_id": pr_id}}
             #just for test
-            package_overrides={spec_name: {"pr_id": "116"}}
+            #package_overrides={spec_name: {"pr_id": "116"}}
         ) if pr_id else base_dict
         return base_dict
 
@@ -553,9 +553,9 @@ class EbsBuildVerify(BuildMeta):
             "my_specs-": [
                 {
                     "spec_name": spec_name,
-                    #"spec_url": f"{self.platform_url}/{config.warehouse_owner}/{spec_name}.git",
+                    "spec_url": f"{self.platform_url}/{config.warehouse_owner}/{spec_name}.git",
                     # just for test
-                    "spec_url": f"https://gitee.com/src-openeuler/syscontainer-tools.git",
+                    #"spec_url": f"https://gitee.com/src-openeuler/syscontainer-tools.git",
                 }
                 for spec_name in spec_names
             ]
