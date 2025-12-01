@@ -253,6 +253,10 @@ class EbsBuildVerify(BuildMeta):
             RuntimeError: _description_
         """
         _json_path = self._combine_data_json_path()
+        # just for test:查看json文件内容
+        with open(_json_path, "r") as file:
+            for data in file.readlines():
+                logger.info(data)
         operate_project_cmds = [
             "ccb",
             operate,
