@@ -234,6 +234,11 @@ class EbsBuildVerify(BuildMeta):
         """
         with open(file_path, "w", encoding="utf-8") as file:
             json.dump(data, file, indent=4)
+        # just for test:查看json文件内容
+        logger.info("cat the json file")
+        with open(file_path, "r") as file:
+            for data in file.readlines():
+                logger.info(data)
         try:
             yield self._command_result(cmds)
         except TypeError as error:
@@ -253,10 +258,6 @@ class EbsBuildVerify(BuildMeta):
             RuntimeError: _description_
         """
         _json_path = self._combine_data_json_path()
-        # just for test:查看json文件内容
-        with open(_json_path, "r") as file:
-            for data in file.readlines():
-                logger.info(data)
         operate_project_cmds = [
             "ccb",
             operate,
