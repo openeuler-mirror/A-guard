@@ -203,8 +203,6 @@ class EbsBuildVerify(BuildMeta):
             response: After json.loads, return the data
         """
         code, output, error = command(cmds, console=False, synchronous=False)
-        logger.info("the cmds is {}".format(cmds))
-        logger.info("the output and error are {}, {} ".format(output, error))
         try:
             response = json.loads(output)
             if isinstance(response, list):
