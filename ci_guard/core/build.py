@@ -1524,6 +1524,6 @@ class BuildVerify:
         check_result = buildverify.build()
         build_details = check_result.get("build_detail")
         for build_detail in build_details:
-            log_url = build_detail.get("log_url").replace("http://172.16.1.108:30108/", "https://eulermaker.compass-ci.openeuler.openatom.cn/")
+            log_url = build_detail.get("log_url").replace("http://172.16.9.179:30108/", "https://eulermaker.openeuler.openatom.cn/")
             logger.info(f"The package's build log==>'{log_url}'")
         return check_result
