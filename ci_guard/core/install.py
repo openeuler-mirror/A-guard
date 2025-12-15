@@ -483,8 +483,8 @@ class UnifyBuildInstallVerify(InstallBase):
     def _get_repo_id(self, build_id):
         ground_project_repo = {}
         cmds = f"ccb select builds build_id={build_id} -f repo_id,ground_projects"
-        logger.info(cmds)
         code, out, error = command(cmds=cmds.split(), console=False)
+        logger.info("the cmd is {} and the out is {}".format(cmds, out))
         if code:
             logger.error(f"Failed to get the repo id,command: {cmds} error: {error}.")
             raise ValueError()
