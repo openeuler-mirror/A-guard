@@ -341,9 +341,6 @@ GATEWAY_IP: 172.16.9.179
 GATEWAY_PORT: 30108
 ACCOUNT: ${OauthAccount}
 PASSWORD: ${OauthPassword}
-MY_ACCOUNT: ${OauthAccount}
-AUTH_CODE: ${OauthPassword}
-ENABLE_AUTH_CODE: 1
 OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
 OAUTH_REDIRECT_URL: http://eulermaker.openeuler.openatom.cn/oauth/
 PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
