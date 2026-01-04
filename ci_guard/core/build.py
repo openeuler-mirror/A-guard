@@ -178,7 +178,7 @@ class EbsBuildVerify(BuildMeta):
                     "skip_check": "n",
                     "runtime": 21600
                 },
-                "description": f"{config.warehouse_owner}/{self.origin_package}/pulls/{self.pr_num}"
+                "description": f"{config.warehouse_owner}/{self.origin_package}/pull/{self.pr_num}"
             }
         )
         logger.info(f"BASE DICT:{base_dict}")
