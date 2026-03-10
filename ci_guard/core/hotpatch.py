@@ -24,7 +24,7 @@ from retrying import retry
 from contextlib import contextmanager
 
 from conf import config
-from api.gitee import Gitee
+from api.gitcode import Gitcode
 
 
 class MakeHotPatchProject:
@@ -44,7 +44,7 @@ class MakeHotPatchProject:
         self.issue_title = issue_title
         self.issue_date = issue_date
         self.hotpatch_repo = repo
-        self.gitee = Gitee(config.repo, owner=config.warehouse_owner)
+        self.gitcode = Gitcode(config.repo, owner=config.warehouse_owner)
 
     @property
     def test_project_name(self):
@@ -191,7 +191,7 @@ class MakeHotPatchProject:
             "package_repos": [
                 {
                 "spec_name": config.repo,
-                "spec_url": f"https://gitee.com/{config.warehouse_owner}/{config.repo}.git",
+                "spec_url": f"https://gitcode.com/{config.warehouse_owner}/{config.repo}.git",
                 "spec_branch": "master",
                 }
             ],
@@ -302,17 +302,17 @@ class MakeHotPatchProject:
     def comment_tag(self, build_details):
         result_list = [0 if result == "success" else 1 for arch, result in build_details.items()]
         if sum(result_list) == 0:
-            self.gitee.remove_tag(self.pull_request, "ci_failed")
-            self.gitee.create_tag(self.pull_request, "ci_successful")
+            self.gitcode.remove_tag(self.pull_request, "ci_failed")
+            self.gitcode.create_tag(self.pull_request, "ci_successful")
         else:
-            self.gitee.remove_tag(self.pull_request, "ci_successful")
-            self.gitee.create_tag(self.pull_request, "ci_failed")
+            self.gitcode.remove_tag(self.pull_request, "ci_successful")
+            self.gitcode.create_tag(self.pull_request, "ci_failed")
 
     @retry(retry_on_result=lambda result: result is False,
            stop_max_attempt_number=STOP_MAX_ATTEMPT_NUMBER,
            )
     def comment_to_pr(self, comment):
-        response = self.gitee.create_pr_comment(self.pull_request, "\n".join(comment))
+        response = self.gitcode.create_pr_comment(self.pull_request, "\n".join(comment))
         if not response:
             logger.error(f"Failed to comment content to {self.pull_request}")
             return False

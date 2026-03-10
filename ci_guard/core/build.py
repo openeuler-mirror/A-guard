@@ -25,9 +25,8 @@ from logger import logger
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from api.build_env import OpenBuildService
-from api.gitee import Gitee
+from api.gitcode import Gitcode
 from conf import config
-from .install import UnifyBuildInstallVerify
 from command import command
 from contextlib import contextmanager
 from json import JSONDecodeError
@@ -122,8 +121,8 @@ class EbsBuildVerify(BuildMeta):
         Returns:
             test_project_name: name of test project
         """
-        if self.platform == "github":
-            return f"github:{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
+        if self.platform:
+            return f"{self.platform}:{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
         else:
             return f"{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
 
@@ -132,12 +131,14 @@ class EbsBuildVerify(BuildMeta):
         """
         platform url
         Returns:
-            platform_url: github/gitee
+            platform_url: github/gitee/gitcode
         """
         if self.platform == "github":
             return f"https://github.com"
-        else:
+        elif self.platform == "gitee":
             return f"https://gitee.com"
+        else:
+            return f"https://gitcode.com"
     
     @property
     def os_variant(self):
@@ -177,6 +178,7 @@ class EbsBuildVerify(BuildMeta):
                     "skip_check": "n",
                     "runtime": 21600
                 },
+                "description": f"{config.warehouse_owner}/{self.origin_package}/pull/{self.pr_num}"
             }
         )
         logger.info(f"BASE DICT:{base_dict}")
@@ -305,12 +307,16 @@ class EbsBuildVerify(BuildMeta):
                 {
                     "spec_name": spec_name,
                     "spec_url": f"{self.platform_url}/{config.warehouse_owner}/{spec_name}.git",
+                    # just for test
+                    #"spec_url": f"https://gitee.com/src-openeuler/syscontainer-tools.git",
                     "spec_branch": self.target_branch,
                 }
             ]
         }
         base_dict.update(
             package_overrides={spec_name: {"pr_id": pr_id}}
+            #just for test
+            #package_overrides={spec_name: {"pr_id": "116"}}
         ) if pr_id else base_dict
         return base_dict
 
@@ -466,6 +472,7 @@ class EbsBuildVerify(BuildMeta):
             time.sleep(10)
             package_statuses = list()
             build_project_result = self._command_result(query_build_project_cmds)
+            logger.debug("the build_project_result is {}".format(build_project_result))
             for build_packages in build_project_result["data"]:
                 for _detail in (
                     build_packages.get("_source", {}).get("build_packages", {}).values()
@@ -548,6 +555,8 @@ class EbsBuildVerify(BuildMeta):
                 {
                     "spec_name": spec_name,
                     "spec_url": f"{self.platform_url}/{config.warehouse_owner}/{spec_name}.git",
+                    # just for test
+                    #"spec_url": f"https://gitee.com/src-openeuler/syscontainer-tools.git",
                 }
                 for spec_name in spec_names
             ]
@@ -744,7 +753,7 @@ class ObsBuildVerify(BuildMeta):
     Package build check
     """
 
-    src_openeuler_ulr = "https://gitee.com/src-openeuler"
+    src_openeuler_ulr = "https://gitcode.com/src-openeuler"
 
     def __init__(
         self,
@@ -765,7 +774,7 @@ class ObsBuildVerify(BuildMeta):
         self.arch = arch
         self.p_project = ProjectMapping()
         self.origin_package, self.pr_num = extract_repo_pull(pull_request)
-        self.gitee = Gitee(self.origin_package)
+        self.gitcode = Gitcode(self.origin_package)
         self.target_branch = target_branch
         self.multiple = multiple
         self.ignore = ignore
@@ -1179,8 +1188,8 @@ class ObsBuildVerify(BuildMeta):
                             GIT_FETCH, "code"
                         )  # kernel special logical
                     else:
-                        gitee_repo = re.sub(r"\.git", "", param.text.split("/")[-1])
-                        param.text = "{}/{}".format(GIT_FETCH, gitee_repo)
+                        gitcode_repo = re.sub(r"\.git", "", param.text.split("/")[-1])
+                        param.text = "{}/{}".format(GIT_FETCH, gitcode_repo)
 
         logger.info("after update meta------")
 
@@ -1424,7 +1433,7 @@ class ObsBuildVerify(BuildMeta):
         """
         package_build_results = dict()
         for sig_build_result in build_results:
-            package_committer = self.gitee.package_committer(
+            package_committer = self.gitcode.package_committer(
                 [sig_build_result.get("package")]
             )
             package_build_results.update(
@@ -1516,6 +1525,6 @@ class BuildVerify:
         check_result = buildverify.build()
         build_details = check_result.get("build_detail")
         for build_detail in build_details:
-            log_url = build_detail.get("log_url").replace("http://172.16.1.108:30108/", "https://eulermaker.compass-ci.openeuler.openatom.cn/")
+            log_url = build_detail.get("log_url").replace("http://172.16.9.179:30108/", "https://eulermaker.openeuler.openatom.cn/")
             logger.info(f"The package's build log==>'{log_url}'")
         return check_result

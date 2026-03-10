@@ -15,7 +15,7 @@ import os.path
 import yaml
 from pathlib import Path
 from conf import config
-from api.gitee import Gitee
+from api.gitcode import Gitcode
 from core import extract_repo_pull, ProcessRecords, get_test_project_name
 from logger import logger
 
@@ -31,7 +31,7 @@ class Comment:
         self.process = process
         self.message = message
         self.repo_name, self.pr_num = extract_repo_pull(self.pr)
-        self.gitee_api = Gitee(repo=self.repo_name)
+        self.gitcode_api = Gitcode(repo=self.repo_name)
         self.comment = (
             f"{config.repo}_{config.pr}_{config.arch}_comment/{config.commentid}"
         )
@@ -117,7 +117,7 @@ class Comment:
         :return: None
         """
 
-        response = self.gitee_api.create_pr_comment(number=self.pr_num, body=message)
+        response = self.gitcode_api.create_pr_comment(number=self.pr_num, body=message)
         if not response:
             logger.error(f"Failed to comment content {message} to {self.pr}")
         if choice:
@@ -138,7 +138,7 @@ class Comment:
             message: message info
             process_comment_id: comment id 
         """
-        response = self.gitee_api.modify_pr_comment(
+        response = self.gitcode_api.modify_pr_comment(
             number=process_comment_id, body=message
         )
         if not response:

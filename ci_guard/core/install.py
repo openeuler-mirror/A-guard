@@ -15,7 +15,7 @@ import json
 import re
 import yaml
 from pathlib import Path
-from api.gitee import Gitee
+from api.gitcode import Gitcode
 from logger import logger
 from command import command
 from core import (
@@ -48,8 +48,8 @@ class InstallBase:
 
     @property
     def project(self):
-        if self._platform == "github":
-            return f"github:{config.branch}:{self._arch}:{self._repo}:{self._pull}"
+        if self._platform:
+            return f"{self._platform}:{config.branch}:{self._arch}:{self._repo}:{self._pull}"
         else:
             return f"{config.branch}:{self._arch}:{self._repo}:{self._pull}"
 
@@ -168,12 +168,11 @@ class InstallBase:
         installed_failed_rpms = dict()
         repo_rpm_map = self.repo_rpm_map()
         for package in archive_rpms:
-            gitee_api = Gitee(repo=package)
+            gitcode_api = Gitcode(repo=package)
             binary_rpms = repo_rpm_map.get(package, set())
             status = "success" if not binary_rpms.intersection(failed) else "failed"
-            commitor = gitee_api.package_committer(
-                package_names=[package],
-                gitee_branch=self._target_branch,
+            commitor = gitcode_api.package_committer(
+                package_names=[package]
             )
             if status == "failed":
                 installed_failed_rpms[package] = False if package in rpms else True
@@ -454,7 +453,7 @@ class UnifyBuildInstallVerify(InstallBase):
                 raise ValueError()
             repo = UnifyBuildInstallVerify.json_loads(cmd_out)
             repos[repo_id] = repo[-1]["_source"]["rpm_repo_path"]
-        return repos
+        return repos
 
     def _get_emsx(self, project):
         cmds = f"ccb select projects os_project={project}"
@@ -484,8 +483,8 @@ class UnifyBuildInstallVerify(InstallBase):
     def _get_repo_id(self, build_id):
         ground_project_repo = {}
         cmds = f"ccb select builds build_id={build_id} -f repo_id,ground_projects"
-        logger.info(cmds)
         code, out, error = command(cmds=cmds.split(), console=False)
+        logger.info("the cmd is {} and the out is {}".format(cmds, out))
         if code:
             logger.error(f"Failed to get the repo id,command: {cmds} error: {error}.")
             raise ValueError()

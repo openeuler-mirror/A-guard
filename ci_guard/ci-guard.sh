@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 JENKINS_HOME=/home/jenkins
 SCRIPT_CMD=${shell_path}/ci_guard/ci.py
 repo_comment="${repo}_${prid}_${arch}_comment"
@@ -7,9 +8,12 @@ SCRIPT_PATCH=${shell_pathoe}/src/build
 if [[ ${platform} == "github" ]]; then
     repo_server_test_tail="-github"
     pr=https://github.com/${repo_owner}/${repo}/pull/${prid}
+elif [[ ${platform} == "gitee" ]]; then
+    repo_server_test_tail=""
+    pr=https://gitee.com/${repo_owner}/${repo}/pulls/${prid}
 else
     repo_server_test_tail=""
-    pr=https://gitee.com/${repo_owner}/${repo}/pull/${prid}
+    pr=https://gitcode.com/${repo_owner}/${repo}/pull/${prid}
 fi
 
 fileserver_user_path="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/${repo_comment}/$commentid"
@@ -17,8 +21,6 @@ fileserver_user_path="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tb
 function repo_owner_judge(){
     if [[ "${repo_owner}" == "" ]]; then
         repo_owner="src-openeuler"
-    elif [[ "${repo_owner}" != "src-openeuler" && "${repo_owner}" != "openeuler" ]]; then
-        repo_server_test_tail="-test"
     fi
 fileserver_tmpfile_path="/repo/soe${repo_server_test_tail}/check_item"
 }
@@ -46,6 +48,7 @@ EOF
 
 function update_config(){
     echo "============ Start synchronizing jenkin environment variables ============"
+    sed -i "/^gitcode_token: */cgitcode_token: ${gitcodeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^gitee_token: */cgitee_token: ${GiteeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^requires_repo: */crequires_repo: ${buddy}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^build_env_account: */cbuild_env_account: ${OBSSecondaryUserName}" ${shell_path}/ci_guard/conf/config.yaml
@@ -156,25 +159,15 @@ function compare_difference(){
     # oecp文件调用比对
     oecp_compare
     abi_compare
-
-    # if [[ -e $result_dir/report-$old_dir-$new_dir/osv.json ]]; then
-    #     python3 $SCRIPT_CMD analysis -df $result_dir/report-$old_dir-$new_dir/osv.json
-    #     if [ $? -ne 0 ]; then
-    #         echo "No need to verify change impact."
-    #         scp_remote_service
-    #         exit 0
-    #     fi
-    # fi
-    # python3 $SCRIPT_CMD comment -pr $pr 
     echo "Change impact needs to be verified."
 }
 
 function abi_compare(){
-    pr_link='https://gitee.com/${repo_owner}/'${repo}'/pulls/'${prid}
+    pr_link='https://gitcode.com/'${repo_owner}/${repo}'/pull/'${prid}
     pr_commit_json_file="${WORKSPACE}/pr_commit_json_file"
     # comment_file="${repo}_${prid}_${arch}_comment"
     if [[ ${platform} != "github" ]]; then
-        curl https://gitee.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files?access_token=$GiteeToken >$pr_commit_json_file
+        curl https://api.gitcode.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files?access_token=$gitcodeToken >$pr_commit_json_file
     fi
     compare_result="${repo}_${prid}_${arch}_compare_result"
     export PYTHONPATH=${shell_pathoe}
@@ -240,7 +233,7 @@ EOF
 
     python3 ${shell_pathoe}/src/utils/oemaker_analyse.py --branch ${tbranch} --arch ${arch} \
 	--oecp_json_path "$result_dir/report-$old_dir-$new_dir/osv.json" --owner "src-openeuler" \
-	--repo ${repo} --gitee_token $GiteeToken --prid ${prid}
+	--repo ${repo} --gitcode_token $gitcodeToken --prid ${prid}
 }
 
 function check_single_build(){
@@ -336,20 +329,20 @@ function config_ebs(){
     if [ ! -d ~/.config/cli/defaults ]; then
         mkdir -p ~/.config/cli/defaults
     fi
+    # need to switch to new EulerMaker
     cat >> ~/.config/cli/defaults/config.yaml <<EOF
-#SRV_HTTP_REPOSITORIES_HOST: 123.249.10.3
-SRV_HTTP_REPOSITORIES_HOST: 172.16.1.108
+SRV_HTTP_REPOSITORIES_HOST: 172.16.9.179
 SRV_HTTP_REPOSITORIES_PORT: 30108
 SRV_HTTP_REPOSITORIES_PROTOCOL: http://
-SRV_HTTP_RESULT_HOST: 172.16.1.108
+SRV_HTTP_RESULT_HOST: 172.16.9.179
 SRV_HTTP_RESULT_PORT: 30108
 SRV_HTTP_RESULT_PROTOCOL: http://
-GATEWAY_IP: 172.16.1.108
+GATEWAY_IP: 172.16.9.179
 GATEWAY_PORT: 30108
 ACCOUNT: ${OauthAccount}
 PASSWORD: ${OauthPassword}
 OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
-OAUTH_REDIRECT_URL: http://eulermaker.compass-ci.openeuler.openatom.cn/oauth/
+OAUTH_REDIRECT_URL: http://eulermaker.openeuler.openatom.cn/oauth/
 PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
 
 EOF
@@ -379,9 +372,9 @@ function retry_command(){
 
 function print_job(){
     job_name=`echo $JOB_NAME|sed -e 's#/#/job/#g'`
-    job_path="https://openeulerjenkins.osinfra.cn/job/${job_name}/$BUILD_ID/console"
+    job_path="https://ci.openeuler.openatom.cn/job/${job_name}/$BUILD_ID/console"
     body_str="${arch}架构构建及构建后检查：<a href=${job_path}>${JOB_NAME}/${BUILD_ID}/console</a>"
-    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/repos/src-openeuler/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${GiteeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
+    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.gitcode.com/api/v5/repos/src-openeuler/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${gitcodeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
 }
 
 function main(){

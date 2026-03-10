@@ -21,7 +21,7 @@ from compare_version import CompareVersion
 from logger import logger
 
 from conf import config
-from api.gitee import Gitee
+from api.gitcode import Gitcode
 from command import command
 
 
@@ -47,14 +47,14 @@ class VerifyHotPatchMeta:
         self.output = output
         self.patch_list = patch_list
         self.mode = mode
-        self.gitee = Gitee(config.repo, owner=config.warehouse_owner)
+        self.gitcode = Gitcode(config.repo, owner=config.warehouse_owner)
 
     def parse_from_meta_file(self, meta_file):
         meta_info = []
         hotpatchs = []
         with open(meta_file, "r", encoding="utf-8", ) as f:
             d = xmltodict.parse(f.read(), process_namespaces="ns0")
-            hotpatchdoc_url = "https://gitee.com/openeuler/hotpatch_meta:hotpatchdoc"
+            hotpatchdoc_url = "https://gitcode.com/openeuler/hotpatch_meta:hotpatchdoc"
             hotpatch_result = d.get(hotpatchdoc_url, {}).get("HotPatchList", {}).get("Package", {}).get("hotpatch", [])
             logger.info(hotpatch_result)
             if hotpatch_result and isinstance(hotpatch_result, dict):
@@ -193,7 +193,7 @@ class VerifyHotPatchMeta:
         return 0
 
     def check_hotpatch_issue(self, hotpatch_issue):
-        hotpatch_issue_resp = self.gitee.get_issue(hotpatch_issue.split("/")[-1])
+        hotpatch_issue_resp = self.gitcode.get_issue(hotpatch_issue.split("/")[-1])
         logger.warning(hotpatch_issue_resp)
         if not hotpatch_issue_resp:
             return self.comment_metadata_pr("获取热补丁issue失败")
@@ -256,8 +256,8 @@ class VerifyHotPatchMeta:
                 file.write("modify_version:%s\n" % " ".join(changed_version_list))
         else:
             if only_status_changed:
-                self.gitee.remove_tag(self.pull_request, "ci_processing")
-                self.gitee.create_tag(self.pull_request, "ci_successful")
+                self.gitcode.remove_tag(self.pull_request, "ci_processing")
+                self.gitcode.create_tag(self.pull_request, "ci_successful")
                 logger.warning("only status is modify, don't need make hotpatch")
 
         checkout_cmd = ["git", "checkout", f"pr_{self.pull_request}"]
@@ -285,15 +285,15 @@ class VerifyHotPatchMeta:
     def comment_metadata_pr(self, err_info):
         body_str = "热补丁制作流程已中止，错误信息：%s" % err_info
         logger.error(err_info)
-        self.gitee.create_pr_comment(self.pull_request, body_str)
-        self.gitee.remove_tag(self.pull_request, "ci_processing")
-        self.gitee.create_tag(self.pull_request, "ci_failed")
+        self.gitcode.create_pr_comment(self.pull_request, body_str)
+        self.gitcode.remove_tag(self.pull_request, "ci_processing")
+        self.gitcode.create_tag(self.pull_request, "ci_failed")
         return -1
 
     def verify(self):
-        self.gitee.remove_tag(self.pull_request, "ci_successful")
-        self.gitee.remove_tag(self.pull_request, "ci_failed")
-        self.gitee.create_tag(self.pull_request, "ci_processing")
+        self.gitcode.remove_tag(self.pull_request, "ci_successful")
+        self.gitcode.remove_tag(self.pull_request, "ci_failed")
+        self.gitcode.create_tag(self.pull_request, "ci_processing")
         result = self.get_update_info()
         if result == 0:
             sys.exit(0)
