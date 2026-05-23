@@ -299,7 +299,6 @@ class EbsBuildVerify(BuildMeta):
             base_dict: Dictionary data after combination
         """
         base_dict = {
-            "project_type": "ci_soe",
             "build_targets": [
                 {"os_variant": self.os_variant, "architecture": self.arch}
             ],
@@ -597,6 +596,292 @@ class EbsBuildVerify(BuildMeta):
             return True
         return False
 
+    def _check_warehouse_in_release_management(self):
+        """
+        Clone release-management repository and check if origin_package exists in target_branch directory
+        
+        Returns:
+            str: "everything", "epol", or "factory" based on where the package is found
+        """
+        from pathlib import Path
+        
+        # Use fixed directory in workspace
+        release_management_dir = Path("./release-management")
+        
+        if release_management_dir.exists() and release_management_dir.is_dir():
+            logger.info(f"release-management directory exists, pulling latest code")
+            pull_cmd = ["git", "pull"]
+            ret, _, error = command(pull_cmd, cwd=str(release_management_dir))
+            
+            if ret != 0:
+                logger.warning(f"Failed to pull latest code, continuing anyway: {error}")
+        else:
+            logger.info(f"Cloning release-management repository to {release_management_dir}")
+            clone_cmd = ["git", "clone", "https://atomgit.com/openeuler/release-management.git", str(release_management_dir)]
+            ret, _, error = command(clone_cmd)
+            
+            if ret != 0:
+                logger.error(f"Failed to clone release-management repository: {error}")
+                raise RuntimeError(f"Failed to clone release-management repository: {error}")
+            
+            logger.info(f"Successfully cloned release-management repository")
+        
+        # Find the directory matching target_branch
+        release_management_path = release_management_dir
+        branch_dir = None
+        
+        # Try exact match first
+        if (release_management_path / self.target_branch).exists() and (release_management_path / self.target_branch).is_dir():
+            branch_dir = release_management_path / self.target_branch
+        
+        if not branch_dir:
+            logger.error(f"Could not find directory for branch {self.target_branch} in release-management")
+            raise RuntimeError(f"Could not find directory for branch {self.target_branch} in release-management")
+        
+        logger.info(f"Checking branch directory: {branch_dir}")
+        
+        # Check if it's master branch
+        if self.target_branch == "master":
+            logger.info("Handling master branch logic")
+            return self._check_master_branch(branch_dir)
+        else:
+            logger.info("Handling non-master branch logic")
+            return self._check_non_master_branch(branch_dir)
+
+    def _check_non_master_branch(self, branch_dir):
+        """
+        Check non-master branch directories: baseos, everything-exclude-baseos, epol
+        
+        Returns:
+            str: "everything" or "epol"
+        """
+        # Define the subdirectories to check (check everything first, then epol)
+        everything_subdirs = ["baseos", "everything-exclude-baseos"]
+        found_in_everything = False
+        
+        # Check everything subdirectories first
+        for subdir in everything_subdirs:
+            subdir_path = branch_dir / subdir
+            if not subdir_path.exists() or not subdir_path.is_dir():
+                logger.debug(f"Subdirectory {subdir} not found, skipping")
+                continue
+            
+            # Check pckg-mgmt.yaml file in this subdirectory
+            yaml_file = subdir_path / "pckg-mgmt.yaml"
+            if not yaml_file.exists():
+                logger.debug(f"pckg-mgmt.yaml not found in {subdir}, skipping")
+                continue
+            
+            try:
+                logger.info(f"Checking {yaml_file} for {self.origin_package}")
+                with open(yaml_file, "r", encoding="utf-8", errors="ignore") as f:
+                    yaml_content = yaml.safe_load(f)
+                    packages = yaml_content.get("packages", [])
+                    for pkg in packages:
+                        pkg_name = pkg.get("name", "")
+                        if pkg_name == self.origin_package:  # 精确匹配
+                            logger.info(f"Found {self.origin_package} in {subdir}/pckg-mgmt.yaml")
+                            found_in_everything = True
+                            break  # Found in everything, no need to check others
+                    if found_in_everything:
+                        break  # Found in everything, no need to check other subdirs
+            except Exception as e:
+                logger.warning(f"Error reading {yaml_file}: {e}")
+                continue
+        
+        if found_in_everything:
+            return "everything"
+        
+        # Check epol directory
+        epol_subdir = "epol"
+        epol_path = branch_dir / epol_subdir
+        epol_yaml = epol_path / "pckg-mgmt.yaml"
+        
+        if epol_path.exists() and epol_path.is_dir() and epol_yaml.exists():
+            try:
+                logger.info(f"Checking {epol_yaml} for {self.origin_package}")
+                with open(epol_yaml, "r", encoding="utf-8", errors="ignore") as f:
+                    yaml_content = yaml.safe_load(f)
+                    packages = yaml_content.get("packages", [])
+                    for pkg in packages:
+                        pkg_name = pkg.get("name", "")
+                        if pkg_name == self.origin_package:  # 精确匹配
+                            logger.info(f"Found {self.origin_package} in epol/pckg-mgmt.yaml")
+                            return "epol"
+            except Exception as e:
+                logger.warning(f"Error reading {epol_yaml}: {e}")
+        
+        # Not found in any directory, default to epol
+        logger.warning(f"{self.origin_package} not found in any directories, defaulting to 'epol'")
+        return "epol"
+
+    def _check_master_branch(self, branch_dir):
+        """
+        Check master branch directories
+        
+        Returns:
+            str: "everything", "epol", or "factory"
+        """
+        # Define everything directories for master branch
+        everything_dirs_master = [
+            "openEuler-BaseTools",
+            "openEuler-C",
+            "openEuler-Common_Languages_Dependent_Tools",
+            "openEuler-Erlang",
+            "openEuler-Golang",
+            "openEuler-Java",
+            "openEuler-KernelSpace",
+            "openEuler-Lua",
+            "openEuler-Mainline",
+            "openEuler-Meson",
+            "openEuler-MultiLanguage",
+            "openEuler-Nodejs",
+            "openEuler-Ocaml",
+            "openEuler-Perl",
+            "openEuler-Python",
+            "openEuler-Qt",
+            "openEuler-Ruby"
+        ]
+        
+        # Check everything directories first
+        for subdir in everything_dirs_master:
+            subdir_path = branch_dir / subdir
+            if not subdir_path.exists() or not subdir_path.is_dir():
+                logger.debug(f"Subdirectory {subdir} not found, skipping")
+                continue
+            
+            # Check pckg-mgmt.yaml file in this subdirectory
+            yaml_file = subdir_path / "pckg-mgmt.yaml"
+            if not yaml_file.exists():
+                logger.debug(f"pckg-mgmt.yaml not found in {subdir}, skipping")
+                continue
+            
+            try:
+                logger.info(f"Checking {yaml_file} for {self.origin_package}")
+                with open(yaml_file, "r", encoding="utf-8", errors="ignore") as f:
+                    yaml_content = yaml.safe_load(f)
+                    packages = yaml_content.get("packages", [])
+                    for pkg in packages:
+                        pkg_name = pkg.get("name", "")
+                        if pkg_name == self.origin_package:  # 精确匹配
+                            logger.info(f"Found {self.origin_package} in {subdir}/pckg-mgmt.yaml")
+                            return "everything"
+            except Exception as e:
+                logger.warning(f"Error reading {yaml_file}: {e}")
+                continue
+        
+        # Check epol directory
+        epol_subdir = "openEuler-Epol"
+        epol_path = branch_dir / epol_subdir
+        epol_yaml = epol_path / "pckg-mgmt.yaml"
+        
+        if epol_path.exists() and epol_path.is_dir() and epol_yaml.exists():
+            try:
+                logger.info(f"Checking {epol_yaml} for {self.origin_package}")
+                with open(epol_yaml, "r", encoding="utf-8", errors="ignore") as f:
+                    yaml_content = yaml.safe_load(f)
+                    packages = yaml_content.get("packages", [])
+                    for pkg in packages:
+                        pkg_name = pkg.get("name", "")
+                        if pkg_name == self.origin_package:  # 精确匹配
+                            logger.info(f"Found {self.origin_package} in epol/pckg-mgmt.yaml")
+                            return "epol"
+            except Exception as e:
+                logger.warning(f"Error reading {epol_yaml}: {e}")
+        
+        # Check factory directory
+        factory_subdir = "openEuler-Factory"
+        factory_path = branch_dir / factory_subdir
+        factory_yaml = factory_path / "pckg-mgmt.yaml"
+        
+        if factory_path.exists() and factory_path.is_dir() and factory_yaml.exists():
+            try:
+                logger.info(f"Checking {factory_yaml} for {self.origin_package}")
+                with open(factory_yaml, "r", encoding="utf-8", errors="ignore") as f:
+                    yaml_content = yaml.safe_load(f)
+                    packages = yaml_content.get("packages", [])
+                    for pkg in packages:
+                        pkg_name = pkg.get("name", "")
+                        if pkg_name == self.origin_package:  # 精确匹配
+                            logger.info(f"Found {self.origin_package} in factory/pckg-mgmt.yaml")
+                            return "factory"
+            except Exception as e:
+                logger.warning(f"Error reading {factory_yaml}: {e}")
+        
+        # Not found in any directory, default to factory
+        logger.warning(f"{self.origin_package} not found in any directories, defaulting to 'factory'")
+        return "factory"
+
+    def _update_ground_project_config(self, repo_type):
+        """
+        Get ground project configuration and update PR project
+        
+        Args:
+            repo_type: "everything", "epol", or "factory"
+        """
+        # Construct ground project name
+        if self.target_branch == "master":
+            ground_project_name = f"openEuler-master:{repo_type}"
+        else:
+            ground_project_name = f"{self.target_branch}:{repo_type}"
+        logger.info(f"Getting ground project config from: {ground_project_name}")
+        
+        # Execute ccb command to get ground project info
+        ccb_cmd = [
+            "ccb", "select", "projects", ground_project_name,
+            "-f", "build_env_macros,build_targets"
+        ]
+        
+        result = self._command_result(ccb_cmd)
+        
+        if not result or not result.get("data"):
+            logger.warning(f"Failed to get ground project config for {ground_project_name}")
+            return
+        
+        # Parse the result
+        project_data = result["data"][0]["_source"]
+        build_env_macros = project_data.get("build_env_macros", "")
+        build_targets = project_data.get("build_targets", [])
+        
+        logger.info(f"Successfully got ground project config")
+        
+        # Find matching architecture in build_targets
+        matched_ground_projects = []
+        for target in build_targets:
+            if target.get("architecture") == self.arch:
+                matched_ground_projects = target.get("ground_projects", [])
+                break
+        
+        # Add current ground project to the list
+        if ground_project_name not in matched_ground_projects:
+            matched_ground_projects.append(ground_project_name)
+        
+        logger.info(f"Using ground_projects: {matched_ground_projects}")
+        
+        # Prepare update content
+        update_content = {}
+        
+        # Add build_env_macros (it's already a YAML string)
+        if build_env_macros:
+            update_content["build_env_macros"] = build_env_macros
+        
+        # Update build_targets with ground_projects
+        update_content["build_targets"] = [
+            {
+                "os_variant": self.os_variant,
+                "architecture": self.arch,
+                "ground_projects": matched_ground_projects
+            }
+        ]
+        
+        logger.info(f"Updating PR project with ground project config")
+        logger.debug(f"Update content: {update_content}")
+        
+        # Update the PR project
+        self.operate_package_project(update_content)
+        
+        logger.info(f"Successfully updated ground project config")
+
     def build_prep_single(self):
         """
         Single-package build process
@@ -609,6 +894,11 @@ class EbsBuildVerify(BuildMeta):
         # Determine if a repository exists
         if config.platform == "gitee" and not self._check_warehouse_exists(self.origin_package):
             raise RuntimeError(f"This {self.origin_package} repository does not exist")
+        
+        # Check if warehouse exists in release-management repository
+        logger.info("================= Check warehouse in release-management =================")
+        repo_type = self._check_warehouse_in_release_management()
+        
         logger.info("================= Create project =================")
         self.create_project()
         # 2. Empty the project
@@ -620,18 +910,16 @@ class EbsBuildVerify(BuildMeta):
         self.operate_package_project(
             content=self.dict_data_constitute(self.origin_package, pr_id=self.pr_num)
         )
-        logger.info("================= Update skip_check =================")
-        content = {
-            "build_env_macros+": {
-                "skip_check": "n",
-                "runtime": 21600
-                },
-        }
-        self.operate_package_project(content)
+
         # 4. Upload pr link package
         relation_prs = self.get_relation_link(self.pr_num, self.origin_package)
+        
+        # 5. Get and update ground project configuration
+        logger.info("================= Get and update ground project config =================")
+        self._update_ground_project_config(repo_type)
+        
         logger.info("================= start build =================")
-        # 5. Triggers build
+        # 6. Triggers build
         build_id = (
             self.trigger_build()
             if relation_prs
@@ -662,6 +950,10 @@ class EbsBuildVerify(BuildMeta):
         Returns:
             build_detail: package build result
         """
+        # Check if warehouse exists in release-management repository
+        logger.info("================= Check warehouse in release-management =================")
+        repo_type = self._check_warehouse_in_release_management()
+        
         # Get all packages under the project
         exist_packages = self.get_project_packages("spec_name")
         # Upload the pr link package
@@ -685,6 +977,11 @@ class EbsBuildVerify(BuildMeta):
                     )
                 except RuntimeError:
                     logger.error(f"{depend_pkg} upload failed")
+        
+        # Get and update ground project configuration
+        logger.info("================= Get and update ground project config =================")
+        self._update_ground_project_config(repo_type)
+        
         if not depend_list and not relation_prs:
             build_id = [config.build_id]
         else:
