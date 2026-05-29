@@ -483,6 +483,16 @@ class EbsBuildVerify(BuildMeta):
                         package_statuses.append(
                             _detail.get("build", {}).get("status", 101)
                         )
+                if self.origin_package == "kernel" and package_statuses:
+                    kernel_status = (
+                        build_packages.get("_source", {})
+                        .get("build_packages", {})
+                        .get("kernel", {})
+                        .get("build", {})
+                        .get("status")
+                    )
+                    if kernel_status in package_build_status_stop:
+                        package_statuses = list()
             project_statuses = [
                 _result["_source"].get("status")
                 for _result in build_project_result["data"]
