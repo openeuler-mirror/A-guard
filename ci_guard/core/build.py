@@ -839,7 +839,7 @@ class EbsBuildVerify(BuildMeta):
         # Execute ccb command to get ground project info
         ccb_cmd = [
             "ccb", "select", "projects", ground_project_name,
-            "-f", "build_env_macros,build_targets"
+            "-f", "build_env_macros,build_targets,bootstrap_rpm_repo"
         ]
         
         result = self._command_result(ccb_cmd)
@@ -852,6 +852,7 @@ class EbsBuildVerify(BuildMeta):
         project_data = result["data"][0]["_source"]
         build_env_macros = project_data.get("build_env_macros", "")
         build_targets = project_data.get("build_targets", [])
+        bootstrap_rpm_repo = project_data.get("bootstrap_rpm_repo", [])
         
         logger.info(f"Successfully got ground project config")
         
@@ -874,6 +875,10 @@ class EbsBuildVerify(BuildMeta):
         # Add build_env_macros (it's already a YAML string)
         if build_env_macros:
             update_content["build_env_macros"] = build_env_macros
+        
+        # Add bootstrap_rpm_repo 
+        if bootstrap_rpm_repo:
+            update_content["bootstrap_rpm_repo"] = bootstrap_rpm_repo
         
         # Update build_targets with ground_projects
         update_content["build_targets"] = [
