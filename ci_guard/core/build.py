@@ -611,9 +611,14 @@ class EbsBuildVerify(BuildMeta):
         Clone release-management repository and check if origin_package exists in target_branch directory
         
         Returns:
-            str: "everything", "epol", or "factory" based on where the package is found
+            str: "everything", "epol", "factory", or "multi-version"
         """
         from pathlib import Path
+        
+        # Check if it's a Multi-Version branch
+        if self.target_branch.startswith("Multi-Version"):
+            logger.info(f"Handling Multi-Version branch: {self.target_branch}")
+            return "multi-version"
         
         # Use fixed directory in workspace
         release_management_dir = Path("./release-management")
@@ -827,10 +832,28 @@ class EbsBuildVerify(BuildMeta):
         Get ground project configuration and update PR project
         
         Args:
-            repo_type: "everything", "epol", or "factory"
+            repo_type: "everything", "epol", "factory", or "multi-version"
         """
         # Construct ground project name
-        if self.target_branch == "master":
+        if repo_type == "multi-version":
+            parts = self.target_branch.split("_")
+            if len(parts) < 3:
+                logger.error(f"Invalid Multi-Version branch name: {self.target_branch}")
+                raise RuntimeError(f"Invalid Multi-Version branch name: {self.target_branch}")
+            
+            version_part = parts[-1]  
+            product_parts = parts[:-1]  
+            processed_product_parts = []
+            for i, part in enumerate(product_parts):
+                if i == 0 and part == "Multi-Version":
+                    processed_product_parts.append(part)
+                else:
+                    processed_product_parts.append(part.replace("-", "_"))
+            
+            product_part_underscore = "_".join(processed_product_parts)
+            version_part_underscore = version_part.replace("-", "_")
+            ground_project_name = f"{version_part_underscore}_Epol_{product_part_underscore}"
+        elif self.target_branch == "master":
             ground_project_name = f"openEuler-master:{repo_type}"
         else:
             ground_project_name = f"{self.target_branch}:{repo_type}"
@@ -845,8 +868,8 @@ class EbsBuildVerify(BuildMeta):
         result = self._command_result(ccb_cmd)
         
         if not result or not result.get("data"):
-            logger.warning(f"Failed to get ground project config for {ground_project_name}")
-            return
+            logger.error(f"Failed to get ground project config for {ground_project_name}")
+            raise RuntimeError(f"Ground project not found on EulerMaker for branch {self.target_branch}: {ground_project_name}")
         
         # Parse the result
         project_data = result["data"][0]["_source"]
