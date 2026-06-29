@@ -11,7 +11,6 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 import os
-import json
 from api import Api
 from logger import logger
 from core import (
@@ -61,16 +60,24 @@ class CheckLicense:
         response = Api._post(self._license_url, data, timeout=900)
         if not response:
             logger.error(response)
-            logger.error(f"Failed to check_license")
+            logger.error("Failed to check_license")
             return False
         logger.info(response)
 
         result = response.get("result")
+        if result is None:
+            logger.error("response.get('result') returned None")
+            return False
+        result = result.upper()
         if result == "FAILED":
             logger.error("result = %s", result)
             package_license_list = response.get("packageLicenseList")
             for one_lic in package_license_list:
                 lic_result = one_lic.get("result")
+                if lic_result is None:
+                    logger.error("one_lic.get('result') returned None")
+                    continue
+                lic_result = lic_result.upper()
                 if lic_result == "NOT_ALLOW":
                     not_allow_list.append(one_lic)
                 elif lic_result == "UNKNOW":
@@ -124,7 +131,7 @@ class CheckLicense:
             
             repo_url = repo_url.replace(config.ebs_server, self._ebs_server) + "/" if repo_url else ""
 
-            logger.info(repo_url)
+            logger.info(f"repo_url: {repo_url}")
         except IOError as error:
             logger.error(error)
 
