@@ -24,8 +24,9 @@ class CheckLicense:
     """
     check package license
     """
-    def __init__(self, arch) -> None:
+    def __init__(self, arch, variant=None) -> None:
         self._arch = arch or config.arch
+        self._variant = variant or config.variant
         self._pull = None
         self._repo = None
         self._ebs_server = config.ebs_server

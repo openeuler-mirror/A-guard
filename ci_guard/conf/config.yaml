@@ -64,3 +64,12 @@ sbom_server: http://172.16.2.173:15551
 
 # code platform gitcode/gitee/github
 platform: gitcode
+
+# 构建变体标识（可选），如 64k
+variant:
+
+# 变体对应的 EBS 构建宏行（可选），在 build_env_macros 字符串的 macros: 段尾追加
+# 每个条目是一个列表，元素为要追加的宏行
+variant_macros:
+  64k:
+    - '"%_with_64kb 1"'

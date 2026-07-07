@@ -13,7 +13,16 @@
 
 COMMAND=$1
 INSTALL_LOG_DIR=${WORKSPACE}/install-logs
-FILESERVER_PATH="/repo/openeuler/src-openeuler${tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/${repo}_${prid}_${arch}_comment/$commentid"
+
+# 构建变体标识（可选），如 64k
+variant=${variant:-""}
+if [[ -n "$variant" ]]; then
+    variant_suffix="_${variant}"
+else
+    variant_suffix=""
+fi
+
+FILESERVER_PATH="/repo/openeuler/src-openeuler${tail}/${tbranch}/${committer}/${repo}/${arch}${variant_suffix}/${prid}/${repo}_${prid}_${arch}${variant_suffix}_comment/$commentid"
 
 function update_repo() {
     echo "=======================Start updating the repo source files====================="
@@ -157,8 +166,13 @@ function ccb_download_binarys() {
     project=$1
     package=$2
     arch=$3
+    variant=$4
     if [[ "x${package}" == "xkernel" ]]; then
-      package="kernel:kernel"
+      if [[ -n "${variant}" ]]; then
+        package="kernel:kernel-${variant}"
+      else
+        package="kernel:kernel"
+      fi
     fi
 
     # 使用重试机制执行ccb download
@@ -217,7 +231,7 @@ download_binarys)
     download_binarys $2 $3 $4 $5
     ;;
 ccb_download_binarys)
-    ccb_download_binarys $2 $3 $4
+    ccb_download_binarys $2 $3 $4 $5
     ;;
 isolation_verify)
     isolation_verify $2 $3

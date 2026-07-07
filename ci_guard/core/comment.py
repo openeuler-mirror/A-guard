@@ -32,8 +32,9 @@ class Comment:
         self.message = message
         self.repo_name, self.pr_num = extract_repo_pull(self.pr)
         self.gitcode_api = Gitcode(repo=self.repo_name)
+        variant_suffix = f"_{config.variant}" if config.variant else ""
         self.comment = (
-            f"{config.repo}_{config.pr}_{config.arch}_comment/{config.commentid}"
+            f"{config.repo}_{config.pr}_{config.arch}{variant_suffix}_comment/{config.commentid}"
         )
 
     def comment_message(self):
@@ -46,6 +47,7 @@ class Comment:
             notify_message = self.message + notify_users
         else:
             process_message = self._get_process_message()
+            arch_display = f"{config.arch}({config.variant})" if config.variant else config.arch
             if self.process:
                 notify_message = process_message.get(self.process)
             else:
@@ -56,21 +58,22 @@ class Comment:
                     process_message.get(current_process) if current_process else ""
                 )
                 build_host = f"{config.build_host}/project/show/{get_test_project_name(config.repo, config.pr)}"
-                install_host = f"http://{config.files_server}/src-openeuler/{config.branch}/{config.committer}/{config.repo}/{config.arch}/{config.pr}/{self.comment}/"
+                variant_path = f"_{config.variant}" if config.variant else ""
+                install_host = f"http://{config.files_server}/src-openeuler/{config.branch}/{config.committer}/{config.repo}/{config.arch}{variant_path}/{config.pr}/{self.comment}/"
                 if current_process == "single_build_check":
                     notify_message["message"] = notify_message["message"] % (
-                        config.arch,
+                        arch_display,
                         build_host,
                     )
                 elif current_process == "single_install_check":
                     notify_message["message"] = notify_message["message"] % (
-                        config.arch,
+                        arch_display,
                         install_host,
                     )
                 elif current_process == "diff_analysis":
                     _build, _install = result_file_instance.depend()
                     notify_message["message"] = notify_message["message"] % (
-                        config.arch,
+                        arch_display,
                         len(_build),
                         len(_install),
                         build_host,
@@ -82,7 +85,7 @@ class Comment:
                     log_url = build_host if current_process == "multi_build_check" else install_host
                     success_num, fail_num = result_file_instance.multi_check(process)
                     notify_message["message"] = notify_message["message"] % (
-                        config.arch,
+                        arch_display,
                         success_num,
                         fail_num,
                         log_url,
