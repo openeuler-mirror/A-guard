@@ -26,15 +26,22 @@ from core.license import CheckLicense
     required=True,
 )
 @click.option("-pr", "--pull-request", "pull_request", help="The full url of the pull")
+@click.option(
+    "--variant",
+    help="Build variant (e.g., 64k)",
+    default=None,
+    required=False,
+)
 @click.command("license", help="check package license")
-def license(arch, pull_request):
+def license(arch, pull_request, variant):
     """
     Check package license
     :param arch: x86_64 or aarch64
     :param pull_request: Full pr link
+    :param variant: build variant (e.g., 64k)
     """
     click.echo("start check license")
-    license_check = CheckLicense(arch=arch).check_license(pull_request=pull_request)
+    license_check = CheckLicense(arch=arch, variant=variant).check_license(pull_request=pull_request)
     if license_check:
         message = "package license check successful."
         click.echo(click.style(message, fg="green"))

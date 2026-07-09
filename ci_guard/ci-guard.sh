@@ -2,7 +2,16 @@
 set -x
 JENKINS_HOME=/home/jenkins
 SCRIPT_CMD=${shell_path}/ci_guard/ci.py
-repo_comment="${repo}_${prid}_${arch}_comment"
+
+# 构建变体标识（可选），如 64k
+variant=${variant:-""}
+if [[ -n "$variant" ]]; then
+    variant_suffix="_${variant}"
+else
+    variant_suffix=""
+fi
+
+repo_comment="${repo}_${prid}_${arch}${variant_suffix}_comment"
 SCRIPT_PATCH=${shell_pathoe}/src/build
 
 if [[ ${platform} == "github" ]]; then
@@ -16,7 +25,7 @@ else
     pr=https://gitcode.com/${repo_owner}/${repo}/pull/${prid}
 fi
 
-fileserver_user_path="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/${repo_comment}/$commentid"
+fileserver_user_path="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}${variant_suffix}/${prid}/${repo_comment}/$commentid"
 
 function repo_owner_judge(){
     if [[ "${repo_owner}" == "" ]]; then
@@ -69,6 +78,7 @@ function update_config(){
     sed -i "/^build_env: */cbuild_env: ${build_env}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^ebs_server: */cebs_server: ${ebs_server}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^platform: */cplatform: ${platform}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^variant: */cvariant: ${variant}" ${shell_path}/ci_guard/conf/config.yaml
     echo "End of synchronous config"
 }
 
@@ -101,15 +111,19 @@ function update_repo(){
 
 function scp_remote_service(){
     echo "Start copy the check result file to the remote file server"
-    chmod 755 $WORKSPACE/records-course/${repo}_${prid}_${arch}_comment
-    cat $WORKSPACE/records-course/${repo}_${prid}_${arch}_comment
+    chmod 755 $WORKSPACE/records-course/${repo_comment}
+    cat $WORKSPACE/records-course/${repo_comment}
     echo $fileserver_tmpfile_path
-    retry_command "scp -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $WORKSPACE/records-course/${repo}_${prid}_${arch}_comment root@${repo_server}:$fileserver_tmpfile_path"
+    retry_command "scp -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $WORKSPACE/records-course/${repo_comment} root@${repo_server}:$fileserver_tmpfile_path"
 }
 
 function check_single_install(){
     echo "============ Start check single install ============"
-    python3 $SCRIPT_CMD install -a $arch -pr $pr -tb $tbranch -p $repo
+    if [[ -n "$variant" ]]; then
+        python3 $SCRIPT_CMD install -a $arch -pr $pr -tb $tbranch -p $repo --variant $variant
+    else
+        python3 $SCRIPT_CMD install -a $arch -pr $pr -tb $tbranch -p $repo
+    fi
     if  [ $? -ne 0 ]; then
         echo "Single install check failed"
         scp_remote_service
@@ -144,7 +158,11 @@ function check_multiple_build(){
 
 function check_license(){
     echo "============ Start check license ============"
-    python3  $SCRIPT_CMD license -pr $pr -a $arch
+    if [[ -n "$variant" ]]; then
+        python3  $SCRIPT_CMD license -pr $pr -a $arch --variant $variant
+    else
+        python3  $SCRIPT_CMD license -pr $pr -a $arch
+    fi
     if  [ $? -ne 0 ]; then
         echo "Check package license failed"
         scp_remote_service
@@ -169,7 +187,7 @@ function abi_compare(){
     if [[ ${platform} != "github" ]]; then
         curl https://api.gitcode.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files?access_token=$gitcodeToken >$pr_commit_json_file
     fi
-    compare_result="${repo}_${prid}_${arch}_compare_result"
+    compare_result="${repo}_${prid}_${arch}${variant_suffix}_compare_result"
     export PYTHONPATH=${shell_pathoe}
     if [[ ! "$(ls -A $old_dir | grep '.rpm')" || ! "$(ls -A $new_dir | grep '.rpm')" ]]; then
         echo "this is first commit PR"
@@ -178,7 +196,7 @@ function abi_compare(){
         python3 ${SCRIPT_PATCH}/extra_work.py comparepackage -p ${repo} -j $result_dir/report-$old_dir-$new_dir/osv.json -pr $pr_link -pr_commit $pr_commit_json_file -f $WORKSPACE/${compare_result} || echo "continue although run compare package failed"
     fi
     # run before save rpm, reset remote dir
-    fileserver_user_path="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}"
+    fileserver_user_path="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}${variant_suffix}/${prid}"
     fileserver_tmpfile_path="/repo/soe${repo_server_test_tail}/check_item"
     remote_dir_reset_cmd=$(
         cat <<EOF
@@ -215,13 +233,13 @@ EOF
         new_release=${new_release%%\.oe1}
 
         new_json_name=${repo}_${old_version}-${old_release}_${new_version}-${new_release}.json
-        retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/report-$old_dir-$new_dir/osv.json root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/$new_json_name"
+        retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/report-$old_dir-$new_dir/osv.json root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}${variant_suffix}/${prid}/$new_json_name"
         if [ -d $result_dir/details_analyse ]; then
-            retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/details_analyse root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/"
+            retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/details_analyse root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}${variant_suffix}/${prid}/"
         fi
     fi
     if [[ -d $new_dir && "$(ls -A $new_dir | grep '.rpm')" ]]; then
-        retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $new_dir/* root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}/${prid}/"
+        retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $new_dir/* root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}${variant_suffix}/${prid}/"
     fi
     if [[ -e $compare_result ]]; then
         retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${compare_result} root@${repo_server}:$fileserver_tmpfile_path/${compare_result}"
@@ -238,7 +256,11 @@ EOF
 
 function check_single_build(){
     echo "============ Start check single build ============"
-    python3 $SCRIPT_CMD build -pr $pr -tb $tbranch -a $arch
+    if [[ -n "$variant" ]]; then
+        python3 $SCRIPT_CMD build -pr $pr -tb $tbranch -a $arch --variant $variant
+    else
+        python3 $SCRIPT_CMD build -pr $pr -tb $tbranch -a $arch
+    fi
     if  [ $? -ne 0 ]; then
         echo "Single package build failed"
         scp_remote_service
@@ -281,7 +303,7 @@ function oecp_compare(){
     old_dir="${WORKSPACE}/old_rpms/"
     new_dir="${WORKSPACE}/new_rpms/"
     result_dir="${WORKSPACE}/oecp_result"
-    ci_server_dir="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/0X080480000XC0000000/${repo}/${arch}/"
+    ci_server_dir="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/0X080480000XC0000000/${repo}/${arch}${variant_suffix}/"
 
     if [[ -d $old_dir ]]; then
         echo "rm -rf $old_dir"
@@ -371,9 +393,14 @@ function retry_command(){
 }
 
 function print_job(){
+    if [[ -n "$variant" ]]; then
+        arch_display="${arch}(${variant})"
+    else
+        arch_display="${arch}"
+    fi
     job_name=`echo $JOB_NAME|sed -e 's#/#/job/#g'`
     job_path="https://ci.openeuler.openatom.cn/job/${job_name}/$BUILD_ID/console"
-    body_str="${arch}架构构建及构建后检查：<a href=${job_path}>${JOB_NAME}/${BUILD_ID}/console</a>"
+    body_str="${arch_display}架构构建及构建后检查：<a href=${job_path}>${JOB_NAME}/${BUILD_ID}/console</a>"
     curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.gitcode.com/api/v5/repos/src-openeuler/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${gitcodeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
 }
 
@@ -384,7 +411,8 @@ function main(){
     ls -l .
     if [[ -e ${support_arch_file} ]]; then
       support_arch=`cat ${support_arch_file}`
-      if [[ $support_arch != *$arch* ]]
+      check_arch="${arch}${variant_suffix}"
+      if [[ $support_arch != *$check_arch* ]]
       then
         exclusive_arch=""
       fi

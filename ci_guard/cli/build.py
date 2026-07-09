@@ -29,7 +29,13 @@ from core.build import BuildVerify
 @click.option("-tb", "--target-branch", help="pr's target branch")
 @click.option("--multiple/--no-multiple", default=False, help="Multiple package compilation, single package compilation by default")
 @click.option("--ignore/--no-ignore", default=False, help="Whether to ignore the results of multi-package verification")
-def build(pull_request, target_branch, arch, multiple, ignore):
+@click.option(
+    "--variant",
+    help="Build variant (e.g., 64k)",
+    default=None,
+    required=False,
+)
+def build(pull_request, target_branch, arch, multiple, ignore, variant):
     """
     Rpm build
     :param pull_request:  pr link to be build
@@ -37,10 +43,11 @@ def build(pull_request, target_branch, arch, multiple, ignore):
     :param arch: build architecture
     :param multiple: single or multi-package builds
     :param ignore: ignore build results
+    :param variant: build variant (e.g., 64k)
     """
     click.echo("[INFO] start check build")
     choose = "multiple" if multiple else "single"
-    build_obj = BuildVerify(pull_request, target_branch, arch, multiple, ignore)
+    build_obj = BuildVerify(pull_request, target_branch, arch, multiple, ignore, variant)
     check_result = build_obj.build()
     if check_result.get("current_result") in ["success", "excluded"]:
         # package build successfully

@@ -49,7 +49,13 @@ from conf import config
     default=False,
     help="Ignoring the installation check, the installation procedure is performed by default",
 )
-def install(arch, pull_request, target_branch, packages, multiple, ignore):
+@click.option(
+    "--variant",
+    help="Build variant (e.g., 64k)",
+    default=None,
+    required=False,
+)
+def install(arch, pull_request, target_branch, packages, multiple, ignore, variant):
     """
     Single package/multi-package installation verification
     :param pull_request: Full pr link
@@ -57,6 +63,7 @@ def install(arch, pull_request, target_branch, packages, multiple, ignore):
     :param packages: Single or multiple packages
     :param multiple: This value is True for multi-package installation checks
     :param ignore: Ignore the installation check when true
+    :param variant: build variant (e.g., 64k)
     """
     click.echo("Start check install")
     if multiple:
@@ -71,7 +78,7 @@ def install(arch, pull_request, target_branch, packages, multiple, ignore):
 
     # Selecting the build environment
     build_env = InstallVerify if config.build_env == "obs" else UnifyBuildInstallVerify
-    install_verify = build_env(arch=arch, target_branch=target_branch, ignore=ignore)
+    install_verify = build_env(arch=arch, target_branch=target_branch, ignore=ignore, variant=variant)
 
     install_check = install_verify.install(
         pull_request=pull_request, multiple=multiple, packages=packages

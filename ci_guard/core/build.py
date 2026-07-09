@@ -100,7 +100,7 @@ class EbsBuildVerify(BuildMeta):
     EBS environment builds rpm packages
     """
     def __init__(
-        self, pull_request, target_branch, arch, multiple, ignore=False
+        self, pull_request, target_branch, arch, multiple, ignore=False, variant=None
     ) -> None:
         super(EbsBuildVerify).__init__()
         self.pull_request = pull_request
@@ -108,6 +108,7 @@ class EbsBuildVerify(BuildMeta):
         self.arch = arch
         self.multiple = multiple
         self.ignore = ignore
+        self.variant = variant or config.variant
         self.platform = config.platform
         self.pull = Pull()
         self.api = Api()
@@ -121,10 +122,11 @@ class EbsBuildVerify(BuildMeta):
         Returns:
             test_project_name: name of test project
         """
+        variant_part = f":{self.variant}" if self.variant else ""
         if self.platform:
-            return f"{self.platform}:{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
+            return f"{self.platform}:{self.target_branch}:{self.arch}{variant_part}:{self.origin_package}:{self.pr_num}"
         else:
-            return f"{self.target_branch}:{self.arch}:{self.origin_package}:{self.pr_num}"
+            return f"{self.target_branch}:{self.arch}{variant_part}:{self.origin_package}:{self.pr_num}"
 
     @property
     def platform_url(self):
@@ -156,6 +158,17 @@ class EbsBuildVerify(BuildMeta):
                     os_variant_name = value
 
         return os_variant_name
+
+    @property
+    def kernel_binary_name(self):
+        """
+        Kernel binary package name varies by variant:
+          - 4K (no variant): "kernel"
+          - 64K (variant="64k"): "kernel-64k"
+        """
+        if self.variant:
+            return f"kernel-{self.variant}"
+        return "kernel"
 
     def create_project(self):
         """
@@ -487,7 +500,7 @@ class EbsBuildVerify(BuildMeta):
                     kernel_status = (
                         build_packages.get("_source", {})
                         .get("build_packages", {})
-                        .get("kernel", {})
+                        .get(self.kernel_binary_name, {})
                         .get("build", {})
                         .get("status")
                     )
@@ -827,6 +840,48 @@ class EbsBuildVerify(BuildMeta):
         logger.warning(f"{self.origin_package} not found in any directories, defaulting to 'factory'")
         return "factory"
 
+    def _inject_variant_macros(self, build_env_macros_str):
+        """
+        将 variant 对应的宏行注入到 build_env_macros YAML 字符串的 macros: 段尾
+        Args:
+            build_env_macros_str: 原始 build_env_macros YAML 字符串
+        Returns:
+            str: 注入 variant 宏后的 build_env_macros 字符串
+        """
+        if not self.variant:
+            return build_env_macros_str
+
+        variant_macros = config.variant_macros or {}
+        macro_lines = variant_macros.get(self.variant, [])
+        if not macro_lines:
+            return build_env_macros_str
+
+        # 在 macros: 段的最后一个宏行之后追加新宏行
+        lines = build_env_macros_str.split("\n")
+        result = []
+        in_macros = False
+        last_macro_idx = -1
+
+        for line in lines:
+            result.append(line)
+            if line.strip() == "macros:":
+                in_macros = True
+            elif in_macros:
+                if line.strip().startswith("- "):
+                    last_macro_idx = len(result) - 1
+                elif line.strip() and not line.startswith(" "):
+                    # 遇到下一个顶层 key，macros 段结束
+                    in_macros = False
+
+        # 在最后一个宏行之后插入 variant 宏
+        if last_macro_idx < 0:
+            return build_env_macros_str
+        for macro_line in macro_lines:
+            last_macro_idx += 1
+            result.insert(last_macro_idx, f'- {macro_line}')
+
+        return "\n".join(result)
+
     def _update_ground_project_config(self, repo_type):
         """
         Get ground project configuration and update PR project
@@ -897,6 +952,7 @@ class EbsBuildVerify(BuildMeta):
         
         # Add build_env_macros (it's already a YAML string)
         if build_env_macros:
+            build_env_macros = self._inject_variant_macros(build_env_macros)
             update_content["build_env_macros"] = build_env_macros
         
         # Add bootstrap_rpm_repo 
@@ -1041,11 +1097,15 @@ class EbsBuildVerify(BuildMeta):
         """
         function deal with kernel
 
+        4K kernel binary package name is "kernel", 64K is "kernel-64k".
+        Filter check_results to only keep the matching package.
+
         Returns:
             check_result: The result of the entire process of package compilation
         """
+        target_package = self.kernel_binary_name
         for check_result in check_results:
-            if check_result.get("package") == "kernel":
+            if check_result.get("package") == target_package:
                 check_results = [check_result]
         return check_results
 
@@ -1099,6 +1159,7 @@ class ObsBuildVerify(BuildMeta):
         ignore=False,
         account=None,
         password=None,
+        variant=None,
     ) -> None:
         super(ObsBuildVerify).__init__()
         self.account = account or config.build_env_account
@@ -1113,6 +1174,7 @@ class ObsBuildVerify(BuildMeta):
         self.target_branch = target_branch
         self.multiple = multiple
         self.ignore = ignore
+        self.variant = variant or config.variant
         if not all([self.account, self.password, self.origin_package, self.pr_num]):
             raise RuntimeError(
                 "Please check whether the path, account and password of obs are fully configured,\
@@ -1834,13 +1896,14 @@ class BuildVerify:
     """
 
     def __init__(
-        self, pull_request, target_branch, arch, multiple, ignore=False
+        self, pull_request, target_branch, arch, multiple, ignore=False, variant=None
     ) -> None:
         self.pull_request = pull_request
         self.target_branch = target_branch
         self.arch = arch
         self.multiple = multiple
         self.ignore = ignore
+        self.variant = variant
 
     def build(self):
         """
@@ -1855,7 +1918,7 @@ class BuildVerify:
             raise RuntimeError(f"{config.build_env} must in obs and ebs")
         base_buildverify = dict(ebs=EbsBuildVerify, obs=ObsBuildVerify)
         buildverify = base_buildverify[config.build_env](
-            self.pull_request, self.target_branch, self.arch, self.multiple, self.ignore
+            self.pull_request, self.target_branch, self.arch, self.multiple, self.ignore, variant=self.variant
         )
         check_result = buildverify.build()
         build_details = check_result.get("build_detail")

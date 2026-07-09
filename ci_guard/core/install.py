@@ -36,10 +36,12 @@ class InstallBase:
 
     install_cmds = os.path.join(os.path.dirname(__file__), "install.sh")
 
-    def __init__(self, arch, target_branch, ignore=False) -> None:
+    def __init__(self, arch, target_branch, ignore=False, variant=None) -> None:
         self._platform = config.platform
-        comment = f"{config.repo}_{config.pr}_{arch}_comment/{config.commentid}"
-        self.log = f"http://{config.files_server}/src-openeuler{self.platform_tail}/{target_branch}/{config.committer}/{config.repo}/{arch}/{config.pr}/{comment}/"
+        self._variant = variant or config.variant
+        variant_suffix = f"_{self._variant}" if self._variant else ""
+        comment = f"{config.repo}_{config.pr}_{arch}{variant_suffix}_comment/{config.commentid}"
+        self.log = f"http://{config.files_server}/src-openeuler{self.platform_tail}/{target_branch}/{config.committer}/{config.repo}/{arch}{variant_suffix}/{config.pr}/{comment}/"
         self._arch = arch or config.arch
         self._pull = None
         self._repo = None
@@ -48,10 +50,11 @@ class InstallBase:
 
     @property
     def project(self):
+        variant_part = f":{self._variant}" if self._variant else ""
         if self._platform:
-            return f"{self._platform}:{config.branch}:{self._arch}:{self._repo}:{self._pull}"
+            return f"{self._platform}:{config.branch}:{self._arch}{variant_part}:{self._repo}:{self._pull}"
         else:
-            return f"{config.branch}:{self._arch}:{self._repo}:{self._pull}"
+            return f"{config.branch}:{self._arch}{variant_part}:{self._repo}:{self._pull}"
 
     @property
     def platform_tail(self):
@@ -357,8 +360,8 @@ class InstallVerify(InstallBase):
     Single package or multiple package installation check
     """
 
-    def __init__(self, arch=None, target_branch=None, ignore=False) -> None:
-        super().__init__(arch, target_branch, ignore)
+    def __init__(self, arch=None, target_branch=None, ignore=False, variant=None) -> None:
+        super().__init__(arch, target_branch, ignore, variant)
 
     @property
     def repository(self):
@@ -432,8 +435,8 @@ class UnifyBuildInstallVerify(InstallBase):
     download the built binary package to pass dnf installation check
     """
 
-    def __init__(self, arch=None, target_branch=None, ignore=False) -> None:
-        super().__init__(arch, target_branch, ignore)
+    def __init__(self, arch=None, target_branch=None, ignore=False, variant=None) -> None:
+        super().__init__(arch, target_branch, ignore, variant)
 
     @staticmethod
     def _load_repos(out_repo):
@@ -569,7 +572,7 @@ gpgcheck=0
         """
         os.makedirs(constant.DOWNLOAD_RPM_DIR, exist_ok=True)
         for package, _ in download_rpms.items():
-            cmds = f"bash {self.install_cmds} ccb_download_binarys {self.project} {package} {self._arch}"
+            cmds = f"bash {self.install_cmds} ccb_download_binarys {self.project} {package} {self._arch} {self._variant or ''}"
             code, _, error = command(
                 cmds=cmds.split(),
                 cwd=constant.DOWNLOAD_RPM_DIR,

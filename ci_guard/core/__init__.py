@@ -43,7 +43,8 @@ def get_test_project_name(repo, pr_number):
     """
     Get test project name
     """
-    return f"home:{config.build_env_account}:branches:{config.arch}:{repo}-{pr_number}"
+    variant_part = f":{config.variant}" if config.variant else ""
+    return f"home:{config.build_env_account}:branches:{config.arch}{variant_part}:{repo}-{pr_number}"
 
 
 class ProcessRecords:
@@ -60,9 +61,10 @@ class ProcessRecords:
     ]
 
     def __init__(self, package="", pr="") -> None:
+        variant_suffix = f"_{config.variant}" if config.variant else ""
         self._file = os.path.join(
             constant.RECORDS_COURSE,
-            package + "_" + pr + "_" + config.arch + "_comment",
+            package + "_" + pr + "_" + config.arch + variant_suffix + "_comment",
         )
         os.makedirs(constant.RECORDS_COURSE, exist_ok=True)
         self._init_progress = dict(
