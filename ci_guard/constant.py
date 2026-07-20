@@ -74,6 +74,7 @@ OS_VARIANR_MAP = {"openEuler-22.03-LTS-SP1": "openEuler:22.03-LTS-Next",
                   "openEuler-24.03-LTS-SP3": "openEuler:24.03-LTS-SP3",
                   "openEuler-24.03-LTS-SP4": "openEuler:24.03-LTS-SP4",
                   "openEuler-26.09": "openEuler:26.09",
+                  "openEuler-26.09-DevStation": "openEuler-26.09-DevStation",
                   "master": "openEuler:mainline"}
 
 BOOTSTRAP_MAP = {
