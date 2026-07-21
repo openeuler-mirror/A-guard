@@ -69,8 +69,12 @@ def ebs_binary_rpm_download(package, arch):
             f"Failed to get the repo ID of the ground project, build id: {config.build_id}"
         )
         exit(1)
+    if not projects:
+        logger.error("No ground projects found.")
+        exit(1)
     if package == "kernel":
         package = "kernel:kernel"
+    folder = None
     for project in projects:
         cmds = f"ccb download os_project={project} packages={package} architecture={arch} -d -b all"
         logger.info(f"ccb download:{cmds}")
@@ -82,7 +86,7 @@ def ebs_binary_rpm_download(package, arch):
         if os.path.exists(folder):
             logger.info(f"Download the archive binary package successfully from os_project:{project}.")
         break
-    if not os.path.exists(folder):
+    if folder is None or not os.path.exists(folder):
         logger.error("Failed to download the archive binary package.")
     else:
         for rpm_file in os.listdir(folder):
