@@ -71,7 +71,6 @@ def ebs_binary_rpm_download(package, arch):
         exit(1)
     if not projects:
         logger.error("No ground projects found.")
-        exit(1)
     if package == "kernel":
         package = "kernel:kernel"
     folder = None
