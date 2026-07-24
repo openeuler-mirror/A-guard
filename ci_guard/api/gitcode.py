@@ -105,15 +105,15 @@ class Gitcode(Api):
         """
         Create a repository tag
         """
-        url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels?access_token={self._token}"
-        return self._post(url, json.dumps(body))
+        url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
+        return self._post(url, self._params(body=json.dumps(body)))
 
     def remove_tag(self, pr_number, label):
         """
         Remove repository tag
         """
-        url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels/{label}?access_token={self._token}"
-        return self._delete(url)
+        url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels/{label}"
+        return self._delete(url, params=self._params())
 
     def get_all_tag(self, pr_number, body):
         """
@@ -122,5 +122,5 @@ class Gitcode(Api):
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
         return self._get(url, self._params(body=body))
     def get_issue(self, cve_issue, enterprises="open_euler"):
-        issue_url = f"https://api.gitcode.com/api/v5/enterprises/{enterprises}/issues/{cve_issue}?access_token={self._token}"
-        return self._get(issue_url)
+        issue_url = f"https://api.gitcode.com/api/v5/enterprises/{enterprises}/issues/{cve_issue}"
+        return self._get(issue_url, params=self._params())
