@@ -1,6 +1,6 @@
 node_mapping:
   - name: main
-    host: http://119.3.219.20:82
+    host: main
     projects:
     - deleted
     - openEuler:22.03:LTS:SP1
@@ -34,7 +34,7 @@ node_mapping:
     - openEuler:selfbuild:function
     - python3-update
   - name: backend_002
-    host: http://120.46.140.206:82
+    host: backend_002
     projects:
     - openEuler:22.03:LTS:Bak
     - openEuler:22.03:LTS:Bak:selfbuild:BaseOS
@@ -54,7 +54,7 @@ node_mapping:
     - openEuler:22.03:LTS:SP2
     - openEuler:22.03:LTS:SP2:Epol
   - name: backend_003
-    host: http://121.36.94.113:82
+    host: backend_003
     projects:
     - bringInRely:SP1
     - bringInRely:SP1:selfbuild:BaseOS
@@ -82,7 +82,7 @@ node_mapping:
     - openEuler:22.03:LTS:Extras
     - openEuler:22.03:LTS:selfbuild:BaseOS
   - name: backend_004
-    host: http://124.70.10.167:82
+    host: backend_004
     projects:
     - bringInRely:20.09
     - openEuler:20.03:LTS

@@ -33,22 +33,9 @@ function config_ebs(){
     if [ ! -d ~/.config/cli/defaults ]; then
         mkdir -p ~/.config/cli/defaults
     fi
-    cat >> ~/.config/cli/defaults/config.yaml <<EOF
-SRV_HTTP_REPOSITORIES_HOST: 172.16.1.108
-SRV_HTTP_REPOSITORIES_PORT: 30108
-SRV_HTTP_REPOSITORIES_PROTOCOL: http://
-SRV_HTTP_RESULT_HOST: 172.16.1.108
-SRV_HTTP_RESULT_PORT: 30108
-SRV_HTTP_RESULT_PROTOCOL: http://
-GATEWAY_IP: 172.16.1.108
-GATEWAY_PORT: 30108
-ACCOUNT: ${OauthAccount}
-PASSWORD: ${OauthPassword}
-OAUTH_TOKEN_URL: https://omapi.osinfra.cn/oneid/oidc/token
-OAUTH_REDIRECT_URL: http://eulermaker.compass-ci.openeuler.openatom.cn/oauth/
-PUBLIC_KEY_URL: https://omapi.osinfra.cn/oneid/public/key?community=openeuler
-
-EOF
+    cp ${shell_path}/ci_guard/conf/ebs_config.yaml ~/.config/cli/defaults/config.yaml
+    sed -i "s/__OAUTH_ACCOUNT__/${OauthAccount}/g" ~/.config/cli/defaults/config.yaml
+    sed -i "s/__OAUTH_PASSWORD__/${OauthPassword}/g" ~/.config/cli/defaults/config.yaml
     source /etc/profile
     source $HOME/.${SHELL##*/}rc
     echo "========== The ebs configuration is complete. =========="

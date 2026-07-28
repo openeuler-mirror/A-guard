@@ -77,12 +77,7 @@ OS_VARIANR_MAP = {"openEuler-22.03-LTS-SP1": "openEuler:22.03-LTS-Next",
                   "openEuler-26.09-DevStation": "openEuler:26.09-DevStation",
                   "master": "openEuler:mainline"}
 
-BOOTSTRAP_MAP = {
-        "http://192.168.137.75:20029": "ems1",
-        "http://192.168.46.177:20029": "ems2",
-        "http://192.168.164.96:20029": "ems3",
-        "http://192.168.86.7:20029": "ems4",
-}
+BOOTSTRAP_MAP = config.bootstrap_nodes or {}
 
 # abi change effects number
 max_abi_change_effects_number = 5

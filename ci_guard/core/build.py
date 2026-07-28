@@ -1340,7 +1340,7 @@ class ObsBuildVerify(BuildMeta):
         package_buid_result = ["building"]
         project_results = list()
         logger.info(
-            f"http://117.78.1.88/project/show/{project} Package is building, please wait......."
+            f"{config.obs_server}/project/show/{project} Package is building, please wait......."
         )
         while package_buid_result:
             time.sleep(5)
@@ -1923,6 +1923,6 @@ class BuildVerify:
         check_result = buildverify.build()
         build_details = check_result.get("build_detail")
         for build_detail in build_details:
-            log_url = build_detail.get("log_url").replace("http://172.16.9.179:30108/", "https://eulermaker.openeuler.openatom.cn/")
+            log_url = build_detail.get("log_url").replace(f"{config.ebs_server}/", "https://eulermaker.openeuler.openatom.cn/")
             logger.info(f"The package's build log==>'{log_url}'")
         return check_result

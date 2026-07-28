@@ -227,9 +227,16 @@ class ProjectMapping:
         if not self._map:
             self._load_config()
 
+        obs_nodes = config.obs_nodes or {}
         for node_map in self._map.get("node_mapping", []):
             if project in node_map.get("projects", []):
-                return node_map.get("host")
+                node_name = node_map.get("host")
+                host = obs_nodes.get(node_name)
+                if not host:
+                    logger.warning(
+                        f"Node name {node_name} for project {project} not found in obs_nodes config."
+                    )
+                return host
 
         logger.warning(f"The project is not in the mapped node: {project}.")
 
