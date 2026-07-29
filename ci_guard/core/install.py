@@ -505,10 +505,11 @@ class UnifyBuildInstallVerify(InstallBase):
   
     def get_bootstrap_repo(self, bootstrap_repo):
         repo_content = ""
+        bootstrap_pattern = "|".join(re.escape(k) for k in constant.BOOTSTRAP_MAP)
         for repos in bootstrap_repo:
             repo_url = repos.get("repo")
             ebs_server = f"{config.ebs_server}/api"
-            ip_port_result = re.match("http://192.168.\d+.\d+:\d+", repo_url)
+            ip_port_result = re.match(bootstrap_pattern, repo_url)
             if ip_port_result:
                 ip_port = ip_port_result.group(0)
                 bootstrap_emsx = constant.BOOTSTRAP_MAP.get(ip_port)

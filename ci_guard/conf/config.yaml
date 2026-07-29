@@ -56,11 +56,29 @@ build_env:
 
 # Trigger build id
 build_id:
+
+# OBS server
+obs_server: http://117.78.1.88
+
+# OBS backend node addresses
+obs_nodes:
+  main: http://119.3.219.20:82
+  backend_002: http://120.46.140.206:82
+  backend_003: http://121.36.94.113:82
+  backend_004: http://124.70.10.167:82
+
 # ebs website
 ebs_server: http://172.16.9.179:30108
 
 # license sbom website
 sbom_server: http://172.16.2.173:15551
+
+# EMS bootstrap node mapping
+bootstrap_nodes:
+  "http://192.168.137.75:20029": "ems1"
+  "http://192.168.46.177:20029": "ems2"
+  "http://192.168.164.96:20029": "ems3"
+  "http://192.168.86.7:20029": "ems4"
 
 # code platform gitcode/gitee/github
 platform: gitcode
