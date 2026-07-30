@@ -62,6 +62,16 @@ class Gitcode(Api):
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{number}"
         return self._get(url, params=self._params())
 
+    def get_pr_files(self, number):
+        """
+        Get the list of changed files for a specific PR
+        :param number: PR number
+        :return: list of changed files, e.g.:
+            [{"filename": "kernel.spec", "status": "modified"}, ...]
+        """
+        url = f"{self.host}/{self._owner}/{self._repo}/pulls/{number}/files"
+        return self._get(url, params=self._params())
+
     def package_committer(self, package_names, community="openeuler", search="fuzzy"):
         """
         Get maintainer information for a package
