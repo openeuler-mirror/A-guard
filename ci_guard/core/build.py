@@ -94,6 +94,96 @@ class BuildMeta(metaclass=ABCMeta):
         """
         pass
 
+    def _get_changed_spec_names(self):
+        """
+        Get the list of changed .spec file names from the PR.
+        Returns:
+            List[str]: spec names (without .spec extension), e.g. ["kernel", "kernel-rt"]
+        """
+        try:
+            gitcode_api = Gitcode(self.origin_package, owner=config.warehouse_owner)
+            files = gitcode_api.get_pr_files(self.pr_num)
+            if not files or not isinstance(files, list):
+                return []
+            spec_names = []
+            for f in files:
+                filename = f.get("filename", "")
+                if filename.endswith(".spec"):
+                    spec_names.append(os.path.basename(filename)[:-5])
+            return spec_names
+        except Exception as e:
+            logger.warning(f"Failed to get PR changed files: {e}")
+            return []
+
+    def _map_spec_to_package(self, spec_name):
+        """
+        Map spec file name to package name in build results.
+        Handles special case for kernel package with 64k variant.
+        """
+        if self.origin_package == "kernel" and self.variant:
+            mapping = {
+                "kernel": f"kernel-{self.variant}",
+                "kernel-rt": f"kernel-rt-{self.variant}b",
+            }
+            return mapping.get(spec_name, spec_name)
+        return spec_name
+
+    def filter_by_changed_specs(self, package_build_results):
+        """
+        Filter build results to only include packages corresponding to
+        spec files changed in the PR.
+
+        Falls back to original results if:
+        - No spec files were changed
+        - Filtered results are empty (mapping mismatch)
+
+        Args:
+            package_build_results: list or dict of build results
+        Returns:
+            Filtered build results
+        """
+        changed_specs = self._get_changed_spec_names()
+        if not changed_specs:
+            logger.info("No changed spec files found, using all build results")
+            return package_build_results
+
+        changed_packages = [self._map_spec_to_package(s) for s in changed_specs]
+        logger.info(f"Changed specs: {changed_specs}, mapped packages: {changed_packages}")
+
+        if isinstance(package_build_results, list):
+            filtered = [
+                r for r in package_build_results
+                if r.get("package") in changed_packages
+            ]
+        elif isinstance(package_build_results, dict):
+            filtered = {
+                k: v for k, v in package_build_results.items()
+                if k in changed_packages
+            }
+        else:
+            return package_build_results
+
+        if not filtered:
+            logger.warning(
+                f"No build results match changed packages {changed_packages}, "
+                f"falling back to all results"
+            )
+            return package_build_results
+
+        logger.info(f"Filtered build results by changed specs: {changed_packages}")
+        return filtered
+
+    def _get_target_packages_for_polling(self):
+        """
+        Get the list of target package names to wait for during build polling.
+        Based on PR changed spec files, mapped to package names.
+        Returns empty list if no spec info available (fallback to waiting for all).
+        """
+        changed_specs = self._get_changed_spec_names()
+        if not changed_specs:
+            return []
+        return [self._map_spec_to_package(s) for s in changed_specs]
+
 
 class EbsBuildVerify(BuildMeta):
     """
@@ -158,17 +248,6 @@ class EbsBuildVerify(BuildMeta):
                     os_variant_name = value
 
         return os_variant_name
-
-    @property
-    def kernel_binary_name(self):
-        """
-        Kernel binary package name varies by variant:
-          - 4K (no variant): "kernel"
-          - 64K (variant="64k"): "kernel-64k"
-        """
-        if self.variant:
-            return f"kernel-{self.variant}"
-        return "kernel"
 
     def create_project(self):
         """
@@ -344,6 +423,8 @@ class EbsBuildVerify(BuildMeta):
         """
         build_time = 0
         try:
+            if not boot_time or not close_time:
+                return build_time
             boot_time = datetime.datetime.strptime(boot_time, "%Y-%m-%dT%H:%M:%S+0800")
             close_time = datetime.datetime.strptime(
                 close_time, "%Y-%m-%dT%H:%M:%S+0800"
@@ -480,15 +561,40 @@ class EbsBuildVerify(BuildMeta):
         package_statuses, project_statuses = [101], [200]
         logger.info("The packages under the project are building, please wait...")
         build_detail = []
+        # 获取 PR 变更的 spec 对应的目标包名，用于提前结束轮询
+        target_packages = self._get_target_packages_for_polling()
+        if target_packages:
+            logger.info(f"Polling will wait for target packages: {target_packages}")
+        # 对于kernel包，必须等到kernel或kernel-{variant}编译完成才能结束，因为后续安装和oecp是针对kernel包进行的
+        if self.origin_package == "kernel":
+            kernel_target = f"kernel-{self.variant}" if self.variant else "kernel"
+            if kernel_target not in target_packages:
+                target_packages.append(kernel_target)
+            logger.info(f"Polling will wait for new target packages: {target_packages}")
+
         while package_statuses or project_statuses:
             time.sleep(10)
             package_statuses = list()
             build_project_result = self._command_result(query_build_project_cmds)
             logger.debug("the build_project_result is {}".format(build_project_result))
             for build_packages in build_project_result["data"]:
-                for _detail in (
-                    build_packages.get("_source", {}).get("build_packages", {}).values()
-                ):
+                build_pkgs = build_packages.get("_source", {}).get("build_packages", {})
+                if target_packages:
+                    # 目标包状态全部到达终态则提前退出
+                    target_done = all(
+                        build_pkgs.get(pkg, {}).get("build", {}).get("status")
+                        in package_build_status_stop
+                        for pkg in target_packages
+                    )
+                    if target_done:
+                        logger.info(
+                            f"Target packages {target_packages} all reached terminal state, "
+                            f"exiting polling early"
+                        )
+                        package_statuses = []
+                        project_statuses = []
+                        break
+                for _detail in build_pkgs.values():
                     if (
                         _detail.get("build", {}).get("status", 101)
                         not in package_build_status_stop
@@ -496,21 +602,13 @@ class EbsBuildVerify(BuildMeta):
                         package_statuses.append(
                             _detail.get("build", {}).get("status", 101)
                         )
-                if self.origin_package == "kernel" and package_statuses:
-                    kernel_status = (
-                        build_packages.get("_source", {})
-                        .get("build_packages", {})
-                        .get(self.kernel_binary_name, {})
-                        .get("build", {})
-                        .get("status")
-                    )
-                    if kernel_status in package_build_status_stop:
-                        package_statuses = list()
-            project_statuses = [
-                _result["_source"].get("status")
-                for _result in build_project_result["data"]
-                if _result["_source"].get("status") not in project_build_status_stop
-            ]
+            else:
+                # 仅在 for 循环未被 break 时才重新计算 project_statuses
+                project_statuses = [
+                    _result["_source"].get("status")
+                    for _result in build_project_result["data"]
+                    if _result["_source"].get("status") not in project_build_status_stop
+                ]
         for build_packages in build_project_result["data"]:
             for build_package, _detail in (
                 build_packages.get("_source", {}).get("build_packages", {}).items()
@@ -1093,22 +1191,6 @@ class EbsBuildVerify(BuildMeta):
             build_detail.update({packages_result.get("package"): _result})
         return build_detail
 
-    def kernel_build(self, check_results):
-        """
-        function deal with kernel
-
-        4K kernel binary package name is "kernel", 64K is "kernel-64k".
-        Filter check_results to only keep the matching package.
-
-        Returns:
-            check_result: The result of the entire process of package compilation
-        """
-        target_package = self.kernel_binary_name
-        for check_result in check_results:
-            if check_result.get("package") == target_package:
-                check_results = [check_result]
-        return check_results
-
     def build(self):
         """
         The package compiles the entire process
@@ -1123,9 +1205,8 @@ class EbsBuildVerify(BuildMeta):
         else:
             package_build_results = self.build_prep_single()
             steps = "single_build_check"
-        # 只鉴别kernel的结果
-        if self.origin_package == "kernel":
-            package_build_results = self.kernel_build(package_build_results)
+        # 按 PR 实际变更的 spec 文件过滤编译结果
+        package_build_results = self.filter_by_changed_specs(package_build_results)
         result_field, package_build_resultes = (
             ("build_result", list(package_build_results.values()))
             if isinstance(package_build_results, dict)
@@ -1136,6 +1217,8 @@ class EbsBuildVerify(BuildMeta):
             for package_build_result in package_build_resultes
         )
         current_result = "failed" if current_result_judge else "success"
+        if current_result == "failed":
+            logger.error(f"Package build failed:{package_build_results}")
         check_result = dict(
             build_detail=package_build_results, current_result=current_result
         )
@@ -1873,6 +1956,8 @@ class ObsBuildVerify(BuildMeta):
         else:
             package_build_results = self.build_prep_single(find_branch)
             steps = "single_build_check"
+        # 按 PR 实际变更的 spec 文件过滤编译结果
+        package_build_results = self.filter_by_changed_specs(package_build_results)
         current_result = "success"
         result_field, package_build_resultes = (
             ("build_result", list(package_build_results.values()))
