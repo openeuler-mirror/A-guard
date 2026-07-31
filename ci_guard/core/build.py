@@ -94,39 +94,67 @@ class BuildMeta(metaclass=ABCMeta):
         """
         pass
 
-    def _get_changed_spec_names(self):
+    @staticmethod
+    def _load_spec_name_mapping():
         """
-        Get the list of changed .spec file names from the PR.
+        Load spec file name → actual spec package name mapping from yaml file.
         Returns:
-            List[str]: spec names (without .spec extension), e.g. ["kernel", "kernel-rt"]
+            dict: mapping dict, e.g. {"foo": "bar"}. Empty dict if file not found or error.
+        """
+        mapping_file = Path(__file__).parents[1].joinpath("conf", "spec_name_mapping.yaml")
+        if not mapping_file.exists():
+            return {}
+        try:
+            with open(mapping_file, encoding="utf-8") as f:
+                mapping = yaml.safe_load(f)
+            return mapping if isinstance(mapping, dict) else {}
+        except Exception as e:
+            logger.warning(f"Failed to load spec name mapping file: {e}")
+            return {}
+
+    def _get_target_packages(self):
+        """
+        Get the list of package names corresponding to the .spec files changed in the PR.
+        Applies spec_name_mapping.yaml to correct file names that differ from actual package names.
+        Returns:
+            List[str]: target package names, e.g. ["bar", "kernel-rt"]
         """
         try:
             gitcode_api = Gitcode(self.origin_package, owner=config.warehouse_owner)
             files = gitcode_api.get_pr_files(self.pr_num)
             if not files or not isinstance(files, list):
                 return []
-            spec_names = []
+            spec_files = []
             for f in files:
                 filename = f.get("filename", "")
                 if filename.endswith(".spec"):
-                    spec_names.append(os.path.basename(filename)[:-5])
-            return spec_names
+                    spec_files.append(os.path.basename(filename)[:-5])
+            # Apply spec name mapping correction
+            mapping = self._load_spec_name_mapping()
+            if mapping:
+                target_packages = [mapping.get(name, name) for name in spec_files]
+                if target_packages != spec_files:
+                    logger.info(
+                        f"Spec name mapping applied: {spec_files} → {target_packages}"
+                    )
+                return target_packages
+            return spec_files
         except Exception as e:
             logger.warning(f"Failed to get PR changed files: {e}")
             return []
 
-    def _map_spec_to_package(self, spec_name):
+    def _map_variant_package(self, package_name):
         """
-        Map spec file name to package name in build results.
-        Handles special case for kernel package with 64k variant.
+        Map a package name to its variant package name in build results.
+        Only kernel packages with a variant (e.g. 64k) are affected.
         """
         if self.origin_package == "kernel" and self.variant:
             mapping = {
                 "kernel": f"kernel-{self.variant}",
                 "kernel-rt": f"kernel-rt-{self.variant}b",
             }
-            return mapping.get(spec_name, spec_name)
-        return spec_name
+            return mapping.get(package_name, package_name)
+        return package_name
 
     def filter_by_changed_specs(self, package_build_results):
         """
@@ -142,35 +170,49 @@ class BuildMeta(metaclass=ABCMeta):
         Returns:
             Filtered build results
         """
-        changed_specs = self._get_changed_spec_names()
-        if not changed_specs:
+        target_packages = self._get_target_packages()
+        if not target_packages:
             logger.info("No changed spec files found, using all build results")
             return package_build_results
 
-        changed_packages = [self._map_spec_to_package(s) for s in changed_specs]
-        logger.info(f"Changed specs: {changed_specs}, mapped packages: {changed_packages}")
+        variant_packages = [self._map_variant_package(p) for p in target_packages]
+        logger.info(
+            f"Target packages: {target_packages}, variant packages: {variant_packages}"
+        )
 
         if isinstance(package_build_results, list):
+            available_packages = {r.get("package") for r in package_build_results}
             filtered = [
                 r for r in package_build_results
-                if r.get("package") in changed_packages
+                if r.get("package") in variant_packages
             ]
         elif isinstance(package_build_results, dict):
+            available_packages = set(package_build_results.keys())
             filtered = {
                 k: v for k, v in package_build_results.items()
-                if k in changed_packages
+                if k in variant_packages
             }
         else:
             return package_build_results
 
+        # If any variant package is not found in build results, mapping may be wrong,
+        # fallback to all results to avoid silently dropping packages
+        missing = set(variant_packages) - available_packages
+        if missing:
+            logger.warning(
+                f"Target packages {variant_packages} not fully found in build results, "
+                f"missing: {missing}, falling back to all results"
+            )
+            return package_build_results
+
         if not filtered:
             logger.warning(
-                f"No build results match changed packages {changed_packages}, "
+                f"No build results match target packages {variant_packages}, "
                 f"falling back to all results"
             )
             return package_build_results
 
-        logger.info(f"Filtered build results by changed specs: {changed_packages}")
+        logger.info(f"Filtered build results by target packages: {variant_packages}")
         return filtered
 
     def _get_target_packages_for_polling(self):
@@ -179,10 +221,10 @@ class BuildMeta(metaclass=ABCMeta):
         Based on PR changed spec files, mapped to package names.
         Returns empty list if no spec info available (fallback to waiting for all).
         """
-        changed_specs = self._get_changed_spec_names()
-        if not changed_specs:
+        target_packages = self._get_target_packages()
+        if not target_packages:
             return []
-        return [self._map_spec_to_package(s) for s in changed_specs]
+        return [self._map_variant_package(p) for p in target_packages]
 
 
 class EbsBuildVerify(BuildMeta):
@@ -565,12 +607,6 @@ class EbsBuildVerify(BuildMeta):
         target_packages = self._get_target_packages_for_polling()
         if target_packages:
             logger.info(f"Polling will wait for target packages: {target_packages}")
-        # 对于kernel包，必须等到kernel或kernel-{variant}编译完成才能结束，因为后续安装和oecp是针对kernel包进行的
-        if self.origin_package == "kernel":
-            kernel_target = f"kernel-{self.variant}" if self.variant else "kernel"
-            if kernel_target not in target_packages:
-                target_packages.append(kernel_target)
-            logger.info(f"Polling will wait for new target packages: {target_packages}")
 
         while package_statuses or project_statuses:
             time.sleep(10)
@@ -636,6 +672,7 @@ class EbsBuildVerify(BuildMeta):
                     }
                 )
         logger.info("Full compilation results completed")
+        logger.info(f"the build detail is {build_detail}")
         return build_detail
 
     def get_project_packages(self, spec_type):
@@ -1223,6 +1260,13 @@ class EbsBuildVerify(BuildMeta):
             build_detail=package_build_results, current_result=current_result
         )
         process_record.update_check_options(steps=steps, check_result=check_result)
+        # Persist target packages for install/oecp stages to read
+        target_packages = self._get_target_packages()
+        if target_packages:
+            process_record.update_check_options(
+                steps="target_packages",
+                check_result=dict(packages=target_packages),
+            )
         return check_result
 
 
