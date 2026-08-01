@@ -106,7 +106,7 @@ class ProcessRecords:
     @property
     def content(self):
         """Check item contents"""
-        if not self.file_pointer:
+        if not self.file_pointer or self.file_pointer.closed:
             self._set_pointer()
         try:
             self.file_pointer.seek(0)
@@ -124,11 +124,13 @@ class ProcessRecords:
         :param steps: check on steps
         :param check_result: check result
         """
-        if steps != "pr_link_reult" and steps not in self.steps:
+        # Metadata keys that bypass step validation and progress tracking
+        metadata_keys = {"pr_link_reult", "target_packages"}
+        if steps not in metadata_keys and steps not in self.steps:
             raise ValueError(f"The {steps} step does not exist in ci check.")
         content = self.content
         content[steps] = check_result
-        if steps != "pr_link_reult":
+        if steps not in metadata_keys:
             self.save(progress=steps, content=content)
         else:
             self._write_content(content=content)

@@ -75,6 +75,36 @@ class InstallBase:
             logger.error(f"Json load error: {error}")
             raise ValueError(error)
 
+    def _get_target_packages(self):
+        """
+        Read the target package names persisted by the build stage from ProcessRecords.
+        Returns:
+            List[str]: package names, e.g. ["python-kafka-python"]
+        """
+        try:
+            process_record = ProcessRecords(self._repo, self._pull)
+            target_data = process_record.content.get("target_packages", {})
+            target_packages = target_data.get("packages", [])
+            if target_packages:
+                logger.info(f"Read target packages from ProcessRecords: {target_packages}")
+            return target_packages if isinstance(target_packages, list) else []
+        except Exception as e:
+            logger.warning(f"Failed to read target packages from ProcessRecords: {e}")
+            return []
+
+    def _map_variant_package(self, package_name):
+        """
+        Map a package name to its variant package name.
+        Only kernel packages with a variant (e.g. 64k) are affected.
+        """
+        if self._repo == "kernel" and self._variant:
+            mapping = {
+                "kernel": f"kernel-{self._variant}",
+                "kernel-rt": f"kernel-rt-{self._variant}b",
+            }
+            return mapping.get(package_name, package_name)
+        return package_name
+
     @staticmethod
     def repo_rpm_map():
         """
@@ -100,10 +130,9 @@ class InstallBase:
             os.remove(repo_rpm_file)
         logger.info(f"Repo RPMS:{repo_rpms}")
         for rpm_repo in repo_rpms:
-            if "kernel" in rpm_repo:
-                _, repo, rpm = rpm_repo
-            else:
-                repo, rpm = rpm_repo
+            if len(rpm_repo) < 2:
+                continue
+            repo, rpm = rpm_repo[0], rpm_repo[1]
             if repo in repo_rpm_map_dict:
                 repo_rpm_map_dict[repo].add(rpm)
             else:
@@ -194,15 +223,49 @@ class InstallBase:
 
         return self._isolation_verify(installed_failed_rpms, installed_result)
 
-    def _single_install_check(self, rpms: dict):
+    def _single_install_check(self, rpms: dict, target_packages: list = None):
+        """
+        Check installation results.
+        :param rpms: {repo: pr} dict
+        :param target_packages: optional list of spec-level package names to check.
+                                If provided, only check these packages instead of the whole repo.
+        """
         install_results = []
         successful, failed = self.installed_checked()
         repo_rpm_map = self.repo_rpm_map()
-        for package, _ in rpms.items():
-            if not repo_rpm_map:
+
+        # 预期检查的包：spec 级目标包，否则为 repo 级全部
+        expected_keys = set(target_packages) if target_packages else set(rpms.keys())
+        # 实际下载的包：repo-rpm-map 的 key。fallback 全量下载时以 repo 名记录，
+        # 一并纳入检查，避免下载了却漏检
+        downloaded_keys = set(repo_rpm_map.keys())
+        check_keys = list(expected_keys)
+        check_keys.extend(k for k in downloaded_keys if k not in check_keys)
+        logger.info(f"check installed packages: {check_keys}")
+        
+        for package in check_keys:
+            binary_rpms = repo_rpm_map.get(package)
+            fallback_key = None
+            if binary_rpms is None:
+                # 无 spec 级下载记录时，可能该包所属 repo 走了 fallback 全量下载
+                # （repo-rpm-map 以 repo 名记录），用 repo 级 key 兜底判定
+                fallback_key = package if package in rpms else self._repo
+                binary_rpms = repo_rpm_map.get(fallback_key)
+            if binary_rpms is None:
+                # 仍无下载/安装记录：不静默放行，保守判失败
+                logger.warning(
+                    f"Package {package} has no download/install record, treat as failed. log: {self.log}"
+                )
                 status = "failed"
             else:
-                binary_rpms = repo_rpm_map.get(package, set())
+                if fallback_key is not None and fallback_key != package:
+                    # spec 级包实际不存在，经 repo 级兜底判定；repo 级 key 会作为独立条目
+                    # 被检查，这里不再重复生成误导性的 spec 级条目
+                    logger.info(
+                        f"Package {package} resolved to repo-level {fallback_key}, "
+                        f"checked once under {fallback_key}"
+                    )
+                    continue
                 status = "success" if not binary_rpms.intersection(failed) else "failed"
 
             if status == "success":
@@ -335,9 +398,22 @@ class InstallBase:
                 download_rpms.update(
                     {link_pull["repo"]: link_pull["pr"] for link_pull in link_pulls}
                 )
+
+        # Read target packages from ProcessRecords (written by build stage)
+        target_packages = self._get_target_packages() if not multiple else []
+        packages_to_check = None
+        if target_packages:
+            packages_to_check = [self._map_variant_package(p) for p in target_packages]
+            logger.info(
+                f"Spec-level mode: target_packages={target_packages}, "
+                f"packages_to_check={packages_to_check}"
+            )
+
         if download_rpms:
             logger.info(f"download rpms:{download_rpms}")
-            self._download_rpms(download_rpms)
+            self._download_rpms(
+                download_rpms, target_packages=target_packages if not multiple else None
+            )
             # Install the rpm compiled by the test project
             command(
                 cmds=[
@@ -350,7 +426,7 @@ class InstallBase:
             )
         # Single package installation, then directly check the results and update
         if not multiple:
-            return self._single_install_check(download_rpms)
+            return self._single_install_check(download_rpms, target_packages=packages_to_check)
 
         return self._multiple_install_check(download_rpms, list(archive_rpms))
 
@@ -566,19 +642,63 @@ gpgcheck=0
             logger.error(error)
             return False
 
-    def _download_rpms(self, download_rpms: dict):
+    def _download_package_full(self, package):
         """
-        CCB downloads the generated binary package
-        :param download_rpms: Rpm to be downloaded
+        Full download the whole repo's rpm package.
+        :param package: repo name
         """
-        os.makedirs(constant.DOWNLOAD_RPM_DIR, exist_ok=True)
-        for package, _ in download_rpms.items():
-            cmds = f"bash {self.install_cmds} ccb_download_binarys {self.project} {package} {self._arch} {self._variant or ''}"
+        cmds = [
+            "bash", self.install_cmds, "ccb_download_binarys",
+            self.project, package, self._arch, self._variant or "",
+        ]
+        code, _, error = command(
+            cmds=cmds,
+            cwd=constant.DOWNLOAD_RPM_DIR,
+        )
+        if code:
+            logger.warning(
+                f"Failed to download the rpm package,project: {self.project} package: {package} error detail: {error}."
+            )
+
+    def _download_package_by_specs(self, package, target_packages):
+        """
+        Spec-level download for a package; fallback to full download on any spec failure.
+        :param package: repo name
+        :param target_packages: target package names of the current repo
+        """
+        for pkg in target_packages:
+            variant_package = self._map_variant_package(pkg)
+            logger.info(f"Downloading spec-level package: {package}:{variant_package}")
+            cmds = [
+                "bash", self.install_cmds, "ccb_download_binarys",
+                self.project, package, self._arch, self._variant or "", variant_package,
+            ]
             code, _, error = command(
-                cmds=cmds.split(),
+                cmds=cmds,
                 cwd=constant.DOWNLOAD_RPM_DIR,
             )
             if code:
                 logger.warning(
-                    f"Failed to download the rpm package,project: {self.project} package: {package} error detail: {error}."
+                    f"Spec-specific download failed for {variant_package} in {package}: {error}"
                 )
+                logger.warning(f"Fallback to full download for {package}")
+                self._download_package_full(package)
+                return
+
+    def _download_rpms(self, download_rpms: dict, target_packages: list = None):
+        """
+        CCB downloads the generated binary package.
+        :param download_rpms: Rpm to be downloaded, {repo: pr}
+        :param target_packages: optional list of target package names for spec-level download.
+                                Only applied to the current repo; related repos are always
+                                fully downloaded. Fallback to full download on failure.
+        """
+        os.makedirs(constant.DOWNLOAD_RPM_DIR, exist_ok=True)
+
+        for package, _ in download_rpms.items():
+            # spec 级精准下载仅作用于当前仓（target_packages 只代表当前仓的目标包）；
+            # 关联仓直接全量下载，避免误用当前仓包名导致漏检或无效请求
+            if package == self._repo and target_packages:
+                self._download_package_by_specs(package, target_packages)
+            else:
+                self._download_package_full(package)
