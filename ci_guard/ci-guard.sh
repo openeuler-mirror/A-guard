@@ -1,4 +1,15 @@
 #!/bin/bash
+# ******************************************************************************
+# Copyright (c) Huawei Technologies Co., Ltd. 2020-2026. All rights reserved.
+# licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# ******************************************************************************/
 set -x
 JENKINS_HOME=/home/jenkins
 SCRIPT_CMD=${shell_path}/ci_guard/ci.py
@@ -395,41 +406,76 @@ function print_job(){
 }
 
 function main(){
-    exclusive_arch=$arch
-    support_arch_file=${repo}_${prid}_support_arch
-    retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${repo_server}:/repo/soe${repo_server_test_tail}/support_arch/${support_arch_file} ."
-    ls -l .
-    if [[ -e ${support_arch_file} ]]; then
-      support_arch=`cat ${support_arch_file}`
-      check_arch="${arch}${variant_suffix}"
-      if [[ $support_arch != *$check_arch* ]]
-      then
-        exclusive_arch=""
-      fi
+    support_arch_prefix=${repo}_${prid}_support_arch_
+
+    # 下载所有 per-spec support_arch 文件（供构建决策与 build.py 结果修正阶段读取）
+    retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        root@${repo_server}:/repo/soe${repo_server_test_tail}/support_arch/${support_arch_prefix}* ." 2>/dev/null || true
+    # 去掉 {repo}_{prid}_ 前缀，还原为 support_arch_{spec_name}（构建决策按 spec 名精确匹配）
+    for f in ${support_arch_prefix}*; do
+        if [[ -e "$f" ]]; then
+            mv "$f" "support_arch_${f#${support_arch_prefix}}"
+        fi
+    done
+
+    # 下载 spec_list 清单（trigger 阶段生成，PR 修改的全部 spec 名）
+    spec_list_remote=${repo}_${prid}_spec_list
+    retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        root@${repo_server}:/repo/soe${repo_server_test_tail}/support_arch/${spec_list_remote} ." 2>/dev/null || true
+    if [[ -e "$spec_list_remote" ]]; then
+        mv "$spec_list_remote" "spec_list"
     fi
 
-    if [[ $exclusive_arch ]]; then
-        echo "exclusive_arch not empty"
-        repo_owner_judge
-        remote_dir_make
-        clean_env
-        update_config
-     	if [ $build_env == 'ebs' ] ; then
-            config_ebs
-	    else
-            config_osc
-            update_repo
+    # 构建决策：
+    # - 无 spec_list（旧 trigger 数据）→ 保守构建，不跳过
+    # - 有 spec_list：任一 spec 无 support_arch_{spec} 文件 → 该 spec 架构不受限 → 全架构构建
+    # - 所有 spec 均有 support_arch 文件 → 取支持架构并集；当前架构不在并集 → 跳过构建
+    need_build=true
+    if [[ -f spec_list ]]; then
+        all_restricted=true
+        support_union=""
+        for spec in $(cat spec_list); do
+            if [[ ! -f "support_arch_${spec}" ]]; then
+                all_restricted=false
+                break
+            fi
+            support_union="${support_union} $(cat support_arch_${spec})"
+        done
+        if $all_restricted; then
+            base_arch="${arch%_64k}"
+            if ! echo "$support_union" | tr ' ' '\n' | grep -qx "$base_arch"; then
+                echo "arch ${arch} not in supported arch union (${support_union}), skip build"
+                need_build=false
+            fi
         fi
-        print_job
-        check_single_build
-        check_single_install
-        check_license
-        compare_difference
-        # 暂不支持多包编译
-    #    check_multiple_build
-    #    check_multiple_install
-        scp_remote_service
     fi
+
+    if ! $need_build; then
+        echo "============ 本架构因 ExclusiveArch 限制跳过构建 ============"
+        return
+    fi
+
+    repo_owner_judge
+    remote_dir_make
+    clean_env
+    update_config
+    if [ $build_env == 'ebs' ] ; then
+        config_ebs
+    else
+        config_osc
+        update_repo
+    fi
+    print_job
+    check_single_build
+    check_single_install
+    check_license
+    compare_difference
+    # 暂不支持多包编译
+#    check_multiple_build
+#    check_multiple_install
+    scp_remote_service
 }
 
 function link_pull(){

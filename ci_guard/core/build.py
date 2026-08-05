@@ -11,6 +11,7 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 import os
+import glob
 import itertools
 import sys
 import re
@@ -661,7 +662,7 @@ class EbsBuildVerify(BuildMeta):
                 ]:
                     resulte = "failed"
                 elif _detail.get("build", {}).get("status") == 106:
-                    resulte = "exclude"
+                    resulte = "excluded"
                 else:
                     resulte = "unknown"
                 build_detail.append(
@@ -1228,6 +1229,85 @@ class EbsBuildVerify(BuildMeta):
             build_detail.update({packages_result.get("package"): _result})
         return build_detail
 
+    def _correct_excluded_by_support_arch(self, package_build_results):
+        """
+        对构建失败的包，读取 per-spec support_arch 文件：
+        当前 arch 不在该 spec 的支持列表 → 结果为因架构不支持而失败，修正为 excluded。
+        """
+        support_arch_map = self._load_support_arch_map()
+        if not support_arch_map:
+            return package_build_results
+
+        base_arch = self.arch.split("_64k")[0] if "_64k" in self.arch else self.arch
+
+        def _correct_one(package, result):
+            spec_name = package
+            support_content = support_arch_map.get(spec_name)
+            if support_content is None:
+                return result
+            # 按空白拆分后做精确成员检查，避免子串误匹配（如 aarch64 命中 aarch64_64k）
+            supported_arches = support_content.split()
+            if result in ["failed", "unresolvable"] and base_arch not in supported_arches:
+                logger.info(
+                    "package %s failed on %s but ExclusiveArch not support, "
+                    "correct to excluded", package, base_arch
+                )
+                return "excluded"
+            return result
+
+        if isinstance(package_build_results, dict):
+            corrected = {}
+            for pkg, res in package_build_results.items():
+                corrected[pkg] = dict(res)
+                corrected[pkg]["build_result"] = _correct_one(pkg, res.get("build_result"))
+            return corrected
+        if isinstance(package_build_results, list):
+            corrected = []
+            for item in package_build_results:
+                item = dict(item)
+                item["result"] = _correct_one(
+                    item.get("package"), item.get("result")
+                )
+                corrected.append(item)
+            return corrected
+        return package_build_results
+
+    def _get_excluded_packages(self, package_build_results):
+        """
+        从构建结果中提取被判定为 excluded（ExclusiveArch 不支持当前架构）的包名。
+        这些包没有构建产物，不应参与后续 install/oecp 阶段。
+        """
+        excluded_packages = set()
+        if isinstance(package_build_results, dict):
+            for pkg, res in package_build_results.items():
+                if res.get("build_result") == "excluded":
+                    excluded_packages.add(pkg)
+        elif isinstance(package_build_results, list):
+            for item in package_build_results:
+                if item.get("result") == "excluded":
+                    excluded_packages.add(item.get("package"))
+        return excluded_packages
+
+    def _load_support_arch_map(self):
+        """
+        读取当前工作目录下所有 support_arch_* 文件。
+        兼容两种文件名：ci-guard.sh 下载的带 {repo}_{prid}_ 前缀文件，
+        以及 comment.sh/验证环境中的不带前缀文件。
+        Returns:
+            dict: {spec_base_name: "x86_64 aarch64 ..."}，无文件时返回空 dict
+        """
+        support_arch_map = {}
+        for f in glob.glob("*support_arch_*"):
+            spec_name = os.path.basename(f).split("support_arch_")[-1]
+            if not spec_name:
+                continue
+            try:
+                with open(f, "r") as sf:
+                    support_arch_map[spec_name] = sf.readline().strip()
+            except IOError:
+                logger.warning("failed to read support_arch file: %s", f)
+        return support_arch_map
+
     def build(self):
         """
         The package compiles the entire process
@@ -1244,6 +1324,10 @@ class EbsBuildVerify(BuildMeta):
             steps = "single_build_check"
         # 按 PR 实际变更的 spec 文件过滤编译结果
         package_build_results = self.filter_by_changed_specs(package_build_results)
+        # 关键修正：因 ExclusiveArch 不支持当前架构而失败的包 → 修正为 excluded
+        package_build_results = self._correct_excluded_by_support_arch(
+            package_build_results
+        )
         result_field, package_build_resultes = (
             ("build_result", list(package_build_results.values()))
             if isinstance(package_build_results, dict)
@@ -1260,13 +1344,25 @@ class EbsBuildVerify(BuildMeta):
             build_detail=package_build_results, current_result=current_result
         )
         process_record.update_check_options(steps=steps, check_result=check_result)
-        # Persist target packages for install/oecp stages to read
         target_packages = self._get_target_packages()
         if target_packages:
-            process_record.update_check_options(
-                steps="target_packages",
-                check_result=dict(packages=target_packages),
-            )
+            # 因 ExclusiveArch 不支持当前架构而 excluded 的包没有构建产物，
+            # 不应参与后续 install/oecp 阶段，从 target_packages 中剔除
+            excluded_packages = self._get_excluded_packages(package_build_results)
+            if excluded_packages:
+                target_packages = [
+                    p for p in target_packages
+                    if self._map_variant_package(p) not in excluded_packages
+                ]
+                logger.info(
+                    "Excluded packages (ExclusiveArch not supported) removed from "
+                    "target_packages: %s", sorted(excluded_packages)
+                )
+            if target_packages:
+                process_record.update_check_options(
+                    steps="target_packages",
+                    check_result=dict(packages=target_packages),
+                )
         return check_result
 
 
