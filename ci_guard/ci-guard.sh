@@ -375,6 +375,17 @@ function config_ebs(){
     cat ~/.config/cli/defaults/config.yaml
 }
 
+function update_ccb(){
+    echo "============ Start update ccb ============"
+    ccb_test="/home/jenkins/ccb1"
+    rm -rf ${ccb_test}
+    mkdir -p ${ccb_test}
+    git clone --depth=1 https://atomgit.com/openeuler-customization/lkp-tests.git ${ccb_test}
+    rm -rf /home/jenkins/lkp-tests/sbin
+    cp -a ${ccb_test}/sbin /home/jenkins/lkp-tests/
+    echo "End update ccb"
+}
+
 function retry_command(){
     local command=$1
     local max_time=3
@@ -463,6 +474,7 @@ function main(){
     update_config
     if [ $build_env == 'ebs' ] ; then
         config_ebs
+        update_ccb
     else
         config_osc
         update_repo
