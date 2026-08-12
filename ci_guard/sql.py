@@ -11,9 +11,9 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 import pymysql
-from pymysql.cursors import DictCursor
 from conf import config
 from logger import logger
+from pymysql.cursors import DictCursor
 
 
 class Mysql:
@@ -28,10 +28,12 @@ class Mysql:
         self.db = self._conn()
 
     def _conn(self):
+        # user_passwd 格式为 "用户名:密码"，冒号前为用户名，冒号后为密码
+        user, password = config.user_passwd.split(":", 1)
         return pymysql.connect(
             host=config.db_host,
-            user="root",
-            password=config.user_passwd[5:],
+            user=user,
+            password=password,
             port=config.port,
             database="citools",
             cursorclass=DictCursor,

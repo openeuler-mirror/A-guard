@@ -49,6 +49,44 @@ function install_log_dir(){
     fi
 }
 
+# 按仓库元数据预建 installroot 顶层布局：
+# tsflags=noscripts 禁用了 filesystem 的 %pretrans，而 glibc、固件等包会先把 /lib 建为真实目录，
+# 导致 filesystem 解包 cpio 冲突（File from package already exists as a directory）。
+# 通过 dnf repoquery 读取 filesystem 包顶层条目类型逐条复刻：
+#   符号链接（mode 12xxxx）→ usrmerge 布局，预建 lib/bin/sbin/lib64 -> usr/* 链接
+#   目录（mode 40xxx）→ 传统布局，预建真实目录
+# openEuler 全系分支均为 usrmerge；元数据检测失败时保守按 usrmerge 处理并输出 WARN
+function prepare_install_layout() {
+    local root=$1
+    local layout
+    layout=$(mktemp)
+    sudo dnf repoquery --qf '[%{FILEMODES} %{FILENAMES}\n]' filesystem \
+        --setopt=reposdir=${WORKSPACE} >"$layout" 2>/dev/null || true
+    local detected=0
+    for link in lib bin sbin lib64; do
+        local mode
+        mode=$(awk -v p="/$link" '$2==p {print $1; exit}' "$layout")
+        if [[ -z "$mode" ]]; then
+            continue
+        fi
+        detected=1
+        if [[ "$mode" == 12* ]]; then
+            sudo mkdir -p $root/usr/$link
+            sudo ln -sfn usr/$link $root/$link
+        else
+            sudo mkdir -p $root/$link
+        fi
+    done
+    rm -f "$layout"
+    if [[ "$detected" -ne 1 ]]; then
+        echo "WARN: failed to detect filesystem layout from repo metadata, assume usrmerge."
+        for link in lib bin sbin lib64; do
+            sudo mkdir -p $root/usr/$link
+            sudo ln -sfn usr/$link $root/$link
+        done
+    fi
+}
+
 function install_rpms() {
     tail=$3
     install_log_dir
@@ -59,6 +97,7 @@ function install_rpms() {
     fi
     sudo rm -rf $install_root/*
     echo "=======================Install Check====================="
+    prepare_install_layout $install_root
     # 安装归档的rpm
     if [ ! -d $2 ]; then
         echo "Start installing the archive RPM package."
@@ -66,7 +105,7 @@ function install_rpms() {
             eval rpm=\$$i
             echo "Start installing the archive package $rpm."
             start=$(date "+%Y%m%d%H%M%S")
-            sudo dnf install -y --setopt=reposdir=${WORKSPACE} --installroot=$install_root $rpm 2>&1 | tee -a $INSTALL_LOG_DIR/$rpm.log
+            sudo dnf install -y --setopt=tsflags=noscripts --setopt=reposdir=${WORKSPACE} --installroot=$install_root $rpm 2>&1 | tee -a $INSTALL_LOG_DIR/$rpm.log
             if [ $? -eq 0 ] && [ -n "$(grep -E 'Complete!' $INSTALL_LOG_DIR/$rpm.log)" ]; then
                 echo "$rpm installed successfully."
                 echo $rpm":"$start":"$(date "+%Y%m%d%H%M%S")":""success" >>$INSTALL_LOG_DIR/installed
@@ -81,8 +120,8 @@ function install_rpms() {
             echo "Start local install $rpm."
             right_rpm=$(echo ${rpm%-*-*})
             start=$(date "+%Y%m%d%H%M%S")
-            sudo dnf localinstall -y --setopt=reposdir=${WORKSPACE} --installroot=$install_root $WORKSPACE/rpms/$rpm 2>&1 | tee -a $INSTALL_LOG_DIR/$right_rpm.log
-            if [ $? -eq 0 ] && [ -n "$(grep -E 'Complete!' $INSTALL_LOG_DIR/$right_rpm.log)" ]; then  
+            sudo dnf localinstall -y --setopt=tsflags=noscripts --setopt=reposdir=${WORKSPACE} --installroot=$install_root $WORKSPACE/rpms/$rpm 2>&1 | tee -a $INSTALL_LOG_DIR/$right_rpm.log
+            if [ $? -eq 0 ] && [ -n "$(grep -E 'Complete!' $INSTALL_LOG_DIR/$right_rpm.log)" ]; then
                 echo "The $right_rpm is successfully installed on the local."
                 echo $right_rpm":"$start":"$(date "+%Y%m%d%H%M%S")":""success" >>$INSTALL_LOG_DIR/installed
             else
@@ -112,11 +151,12 @@ function isolation_verify() {
         mkdir -p $install_isolation_verify
     fi
     sudo rm -rf $install_isolation_verify/*
+    prepare_install_layout $install_isolation_verify
     # 安装归档的rpm
     if [ ! -d $2 ]; then
         echo "Start isolation verify installing the archive RPM package."
         rpm=$2
-        sudo dnf install -y $rpm --setopt=reposdir=${WORKSPACE} --installroot=$install_isolation_verify
+        sudo dnf install -y --setopt=tsflags=noscripts $rpm --setopt=reposdir=${WORKSPACE} --installroot=$install_isolation_verify
         if [ $? -ne 0 ]; then
             echo "Failed installing the archive package $rpm."
             exit 1
@@ -127,7 +167,7 @@ function isolation_verify() {
     fi
     # 存在关联关系的包的安装
     cd $2
-    sudo dnf localinstall -y $3"*.rpm" --installroot=$install_isolation_verify
+    sudo dnf localinstall -y --setopt=tsflags=noscripts $3"*.rpm" --installroot=$install_isolation_verify
     if [ $? -ne 0 ]; then
         echo "Failed local isolation verify installing $3."
         exit 1
@@ -237,7 +277,7 @@ ccb_download_binarys)
     ccb_download_binarys "$2" "$3" "$4" "$5" "$6"
     ;;
 isolation_verify)
-    isolation_verify "$2" "$3"
+    isolation_verify "$@"
     ;;
 *)
     echo 'Command Error'

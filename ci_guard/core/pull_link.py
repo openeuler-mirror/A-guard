@@ -269,11 +269,23 @@ class Pull:
             /None
         """
         relations = dict(link_pr=[], be_link_pr=[])
-        with Mysql() as db:
-            sql = """SELECT * FROM link_pull WHERE source_pr=%s and source_repo=%s
-                     UNION
-                    SELECT * FROM link_pull WHERE link_pr=%s and link_repo=%s;"""
-            link_prs = db.all(sql, [pr_number, repo, pr_number, repo])
+        try:
+            with Mysql() as db:
+                sql = """SELECT * FROM link_pull WHERE source_pr=%s and source_repo=%s
+                         UNION
+                        SELECT * FROM link_pull WHERE link_pr=%s and link_repo=%s;"""
+                link_prs = db.all(sql, [pr_number, repo, pr_number, repo])
+        except Exception as err:
+            # MySQL 不可用（未配置 MYSQL_USER_PASSWD、连接失败等）时降级处理：
+            # 记录错误提示，按无关联 PR 继续往下执行，不中断门禁。
+            logger.warning(
+                "MySQL unavailable, relation_verify degraded to no linked PR. "
+                "pr=%s repo=%s err=%s",
+                pr_number,
+                repo,
+                err,
+            )
+            return relations
         if not link_prs:
             logger.info(f"This PR is no correlation relationship: {pr_number}")
             return relations
