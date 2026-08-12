@@ -2,23 +2,23 @@
 gitee_token:
 gitcode_token:
 
-# repo depend 
-requires_repo: 
+# repo depend
+requires_repo:
 
 # The user who builds the environment
-build_env_account: 
+build_env_account:
 
 # Build environment user password
-build_env_passwd: 
+build_env_passwd:
 
 # Owner of the warehouse
-warehouse_owner: 
+warehouse_owner:
 
 # Host address of the build environment
-build_host: 
+build_host:
 
 # File Server address
-files_server: 
+files_server:
 
 # Oecp software package comparison tool comparison result output file
 compare_result:
@@ -36,7 +36,7 @@ pr:
 repo:
 
 # submitter
-committer: 
+committer:
 
 # Mysql database host
 db_host:
@@ -50,9 +50,9 @@ user_passwd:
 # Pr comment id
 commentid:
 
-branch: 
+branch:
 
-build_env: 
+build_env:
 
 # Trigger build id
 build_id:
@@ -71,7 +71,7 @@ obs_nodes:
 ebs_server: http://172.16.9.179:30108
 
 # license sbom website
-sbom_server: http://172.16.2.173:15551
+sbom_server: http://120.46.72.76:15551
 
 # EMS bootstrap node mapping
 bootstrap_nodes:
