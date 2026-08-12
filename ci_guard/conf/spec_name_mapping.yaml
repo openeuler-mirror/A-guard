@@ -43,3 +43,4 @@ python-scons: scons
 python-tensorflow-estimator: tensorflow-estimator
 webkit2gtk4_1: webkit2gtk4.1
 webkitgtk6_0: webkitgtk6.0
+generic-repos: openEuler-repos

@@ -353,6 +353,7 @@ class EbsBuildVerify(BuildMeta):
             response: After json.loads, return the data
         """
         code, output, error = command(cmds, console=False, synchronous=False)
+        logger.debug(f"cmds: {cmds}, output: {output}, error: {error}")
         try:
             response = json.loads(output)
             if isinstance(response, list):
@@ -1178,6 +1179,25 @@ class EbsBuildVerify(BuildMeta):
         
         logger.info(f"Successfully updated ground project config")
 
+    # 快速验证流程预置build_id（不实际触发新的编译），键为架构或架构-variant，比如
+    # QUICK_VERIFY_BUILD_IDS = {
+    #     "x86_64": "8c66251e-a68a-11f1-b034-fa163e4741d2",
+    #     "aarch64": "92d127f0-a68a-11f1-b48c-fa163e4741d2",
+    #     "aarch64-64k": "917ff2d2-a68a-11f1-b48c-fa163e4741d2",
+    # }
+    # QUICK_VERIFY_BUILD_IDS为空时会实际触发新的编译
+    QUICK_VERIFY_BUILD_IDS = {}
+    def _quick_verify_build_id(self):
+        arch_key = f"{self.arch}-{self.variant}" if self.variant else self.arch
+        build_id = self.QUICK_VERIFY_BUILD_IDS.get(arch_key)
+        if not build_id:
+            return None
+        logger.info(
+            f"Quick verify mode enabled, skip triggering build, "
+            f"use preset build_id: {build_id}"
+        )
+        return [build_id]
+
     def build_prep_single(self):
         """
         Single-package build process
@@ -1216,11 +1236,13 @@ class EbsBuildVerify(BuildMeta):
         
         logger.info("================= start build =================")
         # 6. Triggers build
-        build_id = (
-            self.trigger_build()
-            if relation_prs
-            else self.trigger_build(package_name=self.origin_package)
-        )
+        build_id = self._quick_verify_build_id()
+        if not build_id:
+            build_id = (
+                self.trigger_build()
+                if relation_prs
+                else self.trigger_build(package_name=self.origin_package)
+            )
         if not build_id:
             raise RuntimeError("build error")
         # 6. Wait for the build result, wait for the build
