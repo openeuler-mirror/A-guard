@@ -48,7 +48,7 @@ def license(arch, pull_request, variant):
     else:
         message = "package license check failed."
         click.echo(click.style(message, fg="red"))
-        sys.exit(0)
+        sys.exit(1)
 
 
 __all__ = ("license",)
