@@ -1,0 +1,29 @@
+# 与 Shfmt/Prettier 配合
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{sh,bash,zsh}]
+indent_style = space
+indent_size = 4
+
+# 无扩展名的 shell 可执行脚本不会被上面的通配段匹配，按文件名单独声明以保留项目缩进风格
+[ci_guard/core/recompress]
+indent_style = space
+indent_size = 2
+
+[ci_guard/core/tar_local]
+indent_style = space
+indent_size = 2
+
+[ci_guard/core/tar_local_kernel]
+indent_style = space
+indent_size = 2
+
+[ci_guard/core/tar_local_kernels]
+indent_style = space
+indent_size = 2
