@@ -300,6 +300,20 @@ class EbsBuildVerify(BuildMeta):
         base_dict = self.dict_data_constitute(
             self.origin_package, pr_id=self.pr_num, my_spec_type="my_specs"
         )
+        # Generate project description, truncate if too long to avoid ccb API error
+        description = f"{config.warehouse_owner}/{self.origin_package}/pull/{self.pr_num}"
+        max_desc_length = 50
+        if len(description) > max_desc_length:
+            # Keep PR suffix, truncate middle package name
+            pr_suffix = f"/pull/{self.pr_num}"
+            prefix = f"{config.warehouse_owner}/"
+            available_for_pkg = max_desc_length - len(prefix) - len(pr_suffix) - 3  # 3 for "..."
+            if available_for_pkg > 0:
+                truncated_pkg = self.origin_package[:available_for_pkg] + "..."
+                description = f"{prefix}{truncated_pkg}{pr_suffix}"
+            else:
+                # Even shorter: just keep PR number if really needed
+                description = f"PR#{self.pr_num}"
         base_dict.update(
             {
                 "spec_branch": self.target_branch,
@@ -313,7 +327,7 @@ class EbsBuildVerify(BuildMeta):
                     "skip_check": "n",
                     "runtime": 21600
                 },
-                "description": f"{config.warehouse_owner}/{self.origin_package}/pull/{self.pr_num}"
+                "description": description
             }
         )
         logger.info(f"BASE DICT:{base_dict}")
@@ -609,11 +623,63 @@ class EbsBuildVerify(BuildMeta):
         if target_packages:
             logger.info(f"Polling will wait for target packages: {target_packages}")
 
+        # 用于跟踪已输出日志的包和等待时间
+        logged_packages = set()
+        poll_start_time = time.time()
+        last_wait_log_time = poll_start_time
+        wait_log_interval = 300  # 每5分钟输出一次等待信息
+
+        def _try_get_log_urls():
+            if len(logged_packages) >= len(target_packages):
+                return
+            try:
+                query_jobs_cmds = [
+                    "ccb", "select", "jobs", f"build_id={build_id[0]}",
+                    "-f", "spec_name,id"
+                ]
+                code, output, error = command(query_jobs_cmds, console=False, synchronous=False)
+                if code != 0:
+                    return
+                try:
+                    jobs_result = json.loads(output)
+                except JSONDecodeError:
+                    return
+                if not jobs_result:
+                    return
+                if isinstance(jobs_result, list):
+                    jobs_result = {"code": "0", "data": jobs_result, "msg": None}
+                for job in jobs_result.get("data", []):
+                    source = job.get("_source", {})
+                    spec_name = source.get("spec_name")
+                    job_id = source.get("id")
+                    if not spec_name or not job_id or spec_name in logged_packages:
+                        continue
+                    if target_packages and spec_name not in target_packages:
+                        continue
+                    log_url = f"{config.ebs_server}/package/build-record?osProject={self.test_project_name}&packageName={spec_name}&jobId={job_id}"
+                    public_log_url = log_url.replace(f"{config.ebs_server}/", "https://eulermaker.openeuler.openatom.cn/")
+                    logger.info(f"The package '{spec_name}' build log==>'{public_log_url}'")
+                    logged_packages.add(spec_name)
+            except Exception:
+                pass
+
         while package_statuses or project_statuses:
             time.sleep(10)
             package_statuses = list()
             build_project_result = self._command_result(query_build_project_cmds)
             logger.debug("the build_project_result is {}".format(build_project_result))
+
+            # 尝试获取并输出构建日志链接（job刚创建时可能还查不到，不影响主流程）
+            _try_get_log_urls()
+
+            # 每5分钟输出一次等待信息
+            current_time = time.time()
+            elapsed = current_time - poll_start_time
+            if current_time - last_wait_log_time >= wait_log_interval:
+                elapsed_minutes = int(elapsed // 60)
+                logger.info(f"Build is still in progress, waited {elapsed_minutes} minutes...")
+                last_wait_log_time = current_time
+
             for build_packages in build_project_result["data"]:
                 build_pkgs = build_packages.get("_source", {}).get("build_packages", {})
                 if target_packages:
@@ -2148,6 +2214,7 @@ class BuildVerify:
         check_result = buildverify.build()
         build_details = check_result.get("build_detail")
         for build_detail in build_details:
+            package_name = build_detail.get("package")
             log_url = build_detail.get("log_url").replace(f"{config.ebs_server}/", "https://eulermaker.openeuler.openatom.cn/")
-            logger.info(f"The package's build log==>'{log_url}'")
+            logger.info(f"The package '{package_name}' build log==>'{log_url}'")
         return check_result
