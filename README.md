@@ -1,4 +1,5 @@
 # A-guard
+[English](./README_EN.md) | 简体中文
 
 #### 介绍
 a tool to analyze the impact of changes to software packages
