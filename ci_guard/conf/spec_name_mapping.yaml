@@ -42,5 +42,5 @@ python-gitlab: python-python-gitlab
 python-scons: scons
 python-tensorflow-estimator: tensorflow-estimator
 webkit2gtk4_1: webkit2gtk4.1
-webkitgtk5_0: webkitgtk5.0
+webkit2gtk5_0: webkit2gtk5.0
 webkitgtk6_0: webkitgtk6.0
