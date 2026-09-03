@@ -192,7 +192,9 @@ class InstallBase:
         logger.info(f"CURRENT RESULT:{current_result}")
         return current_result
 
-    def _multiple_install_check(self, rpms, archive_rpms: list = None):
+    def _multiple_install_check(
+        self, rpms, archive_rpms: list = None, install_cmd_failed: bool = False
+    ):
         installed_result = dict()
         _, failed = self.installed_checked()
         archive_rpms.extend([rpm for rpm, _ in rpms.items()])
@@ -203,6 +205,12 @@ class InstallBase:
             gitcode_api = Gitcode(repo=package)
             binary_rpms = repo_rpm_map.get(package, set())
             status = "success" if not binary_rpms.intersection(failed) else "failed"
+            if install_cmd_failed:
+                logger.error(
+                    f"install.sh exited non-zero before/during installation, "
+                    f"mark package {package} as failed. log: {self.log}"
+                )
+                status = "failed"
             commitor = gitcode_api.package_committer(
                 package_names=[package]
             )
@@ -217,18 +225,43 @@ class InstallBase:
                 log_url=self.log,
                 commitor=commitor.get(package),
             )
+        if install_cmd_failed and not installed_result:
+            # install.sh 中止且无任何包记录：合成失败条目，避免 all([]) 误判成功
+            logger.error(
+                f"install.sh exited non-zero with no package records, "
+                f"synthesize failed entries. log: {self.log}"
+            )
+            for package in rpms:
+                installed_result[package] = dict(
+                    install_result="failed",
+                    sig=None,
+                    log_url=self.log,
+                    commitor=None,
+                )
         if self._record(installed_result, "multi_install_check"):
             logger.info("The multi package installation check succeeded.")
             return True
 
+        if install_cmd_failed:
+            # install.sh 中止属于环境级失败，逐包隔离重装无法恢复，直接判失败
+            logger.error(
+                "Multi package installation check failed due to install.sh failure, "
+                "skip isolation verify."
+            )
+            return False
+
         return self._isolation_verify(installed_failed_rpms, installed_result)
 
-    def _single_install_check(self, rpms: dict, target_packages: list = None):
+    def _single_install_check(
+        self, rpms: dict, target_packages: list = None, install_cmd_failed: bool = False
+    ):
         """
         Check installation results.
         :param rpms: {repo: pr} dict
         :param target_packages: optional list of spec-level package names to check.
                                 If provided, only check these packages instead of the whole repo.
+        :param install_cmd_failed: True when install.sh exited non-zero;
+                                   force every package to failed instead of trusting empty records.
         """
         install_results = []
         successful, failed = self.installed_checked()
@@ -267,6 +300,13 @@ class InstallBase:
                     )
                     continue
                 status = "success" if not binary_rpms.intersection(failed) else "failed"
+
+            if install_cmd_failed:
+                logger.error(
+                    f"install.sh exited non-zero before/during installation, "
+                    f"mark package {package} as failed. log: {self.log}"
+                )
+                status = "failed"
 
             if status == "success":
                 install_time = successful.get(package)
@@ -362,6 +402,9 @@ class InstallBase:
                 logger.error("repo error")
                 return
         logger.info("=============Update repo source successful=============")
+        # install.sh install_rpms 非零退出（如环境异常中止）时，必须传导为检查失败，
+        # 避免"无安装记录 → failed 集合为空 → 误判成功"
+        install_cmd_failed = False
         # multiple package install
         if multiple:
             logger.info(
@@ -388,7 +431,12 @@ class InstallBase:
                 )
                 cmds = ["bash", self.install_cmds, "install_rpms"]
                 cmds.extend(list(archive_rpms))
-                command(cmds=cmds)
+                code, _, error = command(cmds=cmds)
+                if code:
+                    install_cmd_failed = True
+                    logger.error(
+                        f"install.sh install_rpms exited with code {code}, detail: {error}."
+                    )
                 logger.info("The archive binary package installation is complete.")
         else:
             link_pulls = self._link_pull()
@@ -415,7 +463,7 @@ class InstallBase:
                 download_rpms, target_packages=target_packages if not multiple else None
             )
             # Install the rpm compiled by the test project
-            command(
+            code, _, error = command(
                 cmds=[
                     "bash",
                     self.install_cmds,
@@ -424,11 +472,22 @@ class InstallBase:
                     self.platform_tail,
                 ]
             )
+            if code:
+                install_cmd_failed = True
+                logger.error(
+                    f"install.sh install_rpms exited with code {code}, detail: {error}."
+                )
         # Single package installation, then directly check the results and update
         if not multiple:
-            return self._single_install_check(download_rpms, target_packages=packages_to_check)
+            return self._single_install_check(
+                download_rpms,
+                target_packages=packages_to_check,
+                install_cmd_failed=install_cmd_failed,
+            )
 
-        return self._multiple_install_check(download_rpms, list(archive_rpms))
+        return self._multiple_install_check(
+            download_rpms, list(archive_rpms), install_cmd_failed=install_cmd_failed
+        )
 
 
 class InstallVerify(InstallBase):
