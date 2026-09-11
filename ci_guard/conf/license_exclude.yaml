@@ -1,0 +1,8 @@
+# license check exclude repository whitelist.
+# Repos in this list whose license check is doomed to fail will be marked
+# as "exclude" (treated as pass, not blocking the gate).
+# Match by repo name only: license check targets rpm packages built from
+# src-openeuler repos, so name collision with the openeuler org is not
+# a concern. Repo-level exclusion applies to all branches/arch/variant.
+exclude_repos:
+  - linux-firmware

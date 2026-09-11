@@ -11,13 +11,17 @@
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
 import os
+from pathlib import Path
+
+import yaml
 from api import Api
-from logger import logger
-from core import (
-    extract_repo_pull,
-    ProcessRecords,
-)
 from conf import config
+from logger import logger
+
+from core import (
+    ProcessRecords,
+    extract_repo_pull,
+)
 
 
 class CheckLicense:
@@ -31,6 +35,26 @@ class CheckLicense:
         self._repo = None
         self._ebs_server = config.ebs_server
         self._license_url = f"{config.sbom_server}/sbom-repo-api/licenseCheck"
+        self._exclude_repos = self._load_exclude_repos()
+
+    @staticmethod
+    def _load_exclude_repos():
+        """
+        Load the license exclude repository whitelist from yaml file.
+        Returns:
+            list: repo names, e.g. ["foo", "bar"]. Empty list if not found or error.
+        """
+        exclude_file = Path(__file__).parents[1].joinpath("conf", "license_exclude.yaml")
+        if not exclude_file.exists():
+            return []
+        try:
+            with open(exclude_file, encoding="utf-8") as f:
+                content = yaml.safe_load(f) or {}
+            repos = content.get("exclude_repos")
+            return repos if isinstance(repos, list) else []
+        except Exception as e:
+            logger.warning(f"Failed to load license exclude file: {e}")
+            return []
 
     def _record(self, license_results, steps):
         current_result = all(
@@ -92,6 +116,27 @@ class CheckLicense:
             logger.error("not_allow_list = %s", not_allow_list)
         if unknow_list:
             logger.error("unkown_list = %s", unknow_list)
+
+        # 白名单仓豁免：license 检查必然失败的 repo，标注 exclude（等同通过，不阻断门禁）。
+        # 仍执行真实检查：若仓库整改后检查成功，照常记录 success，豁免自动失效。
+        if result == "FAILED" and self._repo in self._exclude_repos:
+            logger.warning(f"Repo {self._repo} is in the license exclude whitelist, "
+                           "mark license check result as exclude.")
+            license_results.append(
+                dict(
+                    arch=self._arch,
+                    result="exclude",
+                )
+            )
+            process_record = ProcessRecords(self._repo, self._pull)
+            process_record.update_check_options(
+                steps="package_license_check",
+                check_result=dict(
+                    license_detail=license_results, current_result="exclude"
+                ),
+            )
+            return True
+
         if not_allow_list or unknow_list:
             logger.error('Check license failed, please refer to this document to handle license:'
                     '"https://gitcode.com/openeuler/compliance/blob/master/doc/rectification/license-rectification.md"')
