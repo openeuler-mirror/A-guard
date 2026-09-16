@@ -628,6 +628,8 @@ class EbsBuildVerify(BuildMeta):
         poll_start_time = time.time()
         last_wait_log_time = poll_start_time
         wait_log_interval = 300  # 每5分钟输出一次等待信息
+        max_wait_seconds = 5 * 60 * 60 # 最大等待5小时，超时以失败状态退出
+        timed_out = False
 
         def _try_get_log_urls():
             if len(logged_packages) >= len(target_packages):
@@ -664,6 +666,13 @@ class EbsBuildVerify(BuildMeta):
                 pass
 
         while package_statuses or project_statuses:
+            if time.time() - poll_start_time >= max_wait_seconds:
+                timed_out = True
+                logger.error(
+                    f"Build polling timed out after {max_wait_seconds // 3600} hours, "
+                    "marking unfinished packages as failed"
+                )
+                break
             time.sleep(10)
             package_statuses = list()
             build_project_result = self._command_result(query_build_project_cmds)
@@ -729,6 +738,9 @@ class EbsBuildVerify(BuildMeta):
                     resulte = "failed"
                 elif _detail.get("build", {}).get("status") == 106:
                     resulte = "excluded"
+                elif timed_out:
+                    # 超时退出时，仍处于构建中的包以失败状态返回
+                    resulte = "failed"
                 else:
                     resulte = "unknown"
                 build_detail.append(
