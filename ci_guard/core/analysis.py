@@ -118,32 +118,32 @@ class Analysis:
         )
         target_number = max_random_number - len(abi_change_effects)
         if len(be_build_depended) + len(be_install_depended) >= target_number:
-            while True:
-                be_build_depended_num = (
-                    random.randint(1, target_number - 1) if be_build_depended else 0
+            # Feasible splits must satisfy num < len(be_build_depended) and
+            # target_number - num < len(be_install_depended). Compute the range
+            # once; when it is empty the original resample loop never terminates.
+            min_build_num = 1 if be_build_depended else 0
+            lo = max(min_build_num, target_number - len(be_install_depended) + 1)
+            hi = min(target_number - 1, len(be_build_depended) - 1)
+            if lo <= hi:
+                be_build_depended_num = random.randint(lo, hi)
+                be_install_depended_num = target_number - be_build_depended_num
+                _ = [
+                    be_build_depended.append(abi_change_effect)
+                    for abi_change_effect in abi_change_effects
+                    if abi_change_effect not in be_install_depended
+                ]
+                effect_detail.update(
+                    {
+                        rpm_name: dict(
+                            be_build_depended=random.sample(
+                                be_build_depended, be_build_depended_num
+                            ),
+                            be_install_depended=random.sample(
+                                be_install_depended, be_install_depended_num
+                            ),
+                        )
+                    }
                 )
-                if be_build_depended_num < len(
-                    be_build_depended
-                ) and target_number - be_build_depended_num < len(be_install_depended):
-                    be_install_depended_num = target_number - be_build_depended_num
-                    _ = [
-                        be_build_depended.append(abi_change_effect)
-                        for abi_change_effect in abi_change_effects
-                        if abi_change_effect not in be_install_depended
-                    ]
-                    effect_detail.update(
-                        {
-                            rpm_name: dict(
-                                be_build_depended=random.sample(
-                                    be_build_depended, be_build_depended_num
-                                ),
-                                be_install_depended=random.sample(
-                                    be_install_depended, be_install_depended_num
-                                ),
-                            )
-                        }
-                    )
-                    break
         return effect_detail
 
     def depended_analysis_package(self, packages):
