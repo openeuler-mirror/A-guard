@@ -10,9 +10,9 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details. 
 #
-# GitCode Action 编译门禁入口脚本
+# AtomGit Action 编译门禁入口脚本
 # 对应 Jenkins 时代的 ". ${shell_path}/ci_guard/ci-guard.sh" + 调用 main()
-# 由 workflow (.gitcode/workflows/ci.yml build job) 注入 ACTION_* 环境变量，
+# 由 workflow (.atomgit/workflows/ci.yml build job) 注入 ACTION_* 环境变量，
 # 本脚本将其映射为 ci-guard.sh main() 所需的 Jenkins 变量，source 后调用 main()。
 #
 # 环境变量约定（由 workflow 注入）：
@@ -24,10 +24,10 @@
 #   ACTION_COMMITTER:         PR 提交者
 #   ACTION_ARCH:              编译架构 (x86_64/aarch64)
 #   ACTION_VARIANT:           构建变体（可选，如 64k；仅特定分支支持，见 support_64k_branch）
-#   ACTION_PLATFORM:          代码平台 (gitcode)
+#   ACTION_PLATFORM:          代码平台 (atomgit)
 #   ACTION_OWNER:             PR 目标仓实际 owner（ACTION_COMMUNITY 为改名前旧名，过渡兼容）
 #   ACTION_COMMENT_ID:        PR 评论 ID（可选）
-#   ACTION_GITCODE_TOKEN:     GitCode API token (atomgit.token)
+#   ACTION_GITCODE_TOKEN:     AtomGit API token (atomgit.token)
 #   ACTION_GITEE_TOKEN:       Gitee API token（可选）
 #   ACTION_MYSQL_HOST/PORT/USER_PASSWD: MySQL 连接
 #   ACTION_OAUTH_ACCOUNT/PASSWORD:      EBS OAuth 凭据
@@ -53,7 +53,7 @@ export tbranch=${ACTION_TARGET_BRANCH}
 export committer=${ACTION_COMMITTER}
 export arch=${ACTION_ARCH}
 export variant=${ACTION_VARIANT:-}
-export platform=${ACTION_PLATFORM:-gitcode}
+export platform=${ACTION_PLATFORM:-atomgit}
 export repo_owner=${ACTION_OWNER:-${ACTION_COMMUNITY:-src-openeuler}}
 export commentid=${ACTION_COMMENT_ID:-}
 

@@ -80,8 +80,8 @@ bootstrap_nodes:
   "http://192.168.164.96:20029": "ems3"
   "http://192.168.86.7:20029": "ems4"
 
-# code platform gitcode/gitee/github
-platform: gitcode
+# code platform atomgit/gitee/github
+platform: atomgit
 
 # 构建变体标识（可选），如 64k
 variant:

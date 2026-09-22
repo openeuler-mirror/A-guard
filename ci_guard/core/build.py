@@ -266,7 +266,7 @@ class EbsBuildVerify(BuildMeta):
         """
         platform url
         Returns:
-            platform_url: github/gitee/gitcode
+            platform_url: github/gitee/atomgit
         """
         if self.platform == "github":
             return f"https://github.com"

@@ -54,7 +54,7 @@ class VerifyHotPatchMeta:
         hotpatchs = []
         with open(meta_file, "r", encoding="utf-8", ) as f:
             d = xmltodict.parse(f.read(), process_namespaces="ns0")
-            hotpatchdoc_url = "https://gitcode.com/openeuler/hotpatch_meta:hotpatchdoc"
+            hotpatchdoc_url = "https://atomgit.com/openeuler/hotpatch_meta:hotpatchdoc"
             hotpatch_result = d.get(hotpatchdoc_url, {}).get("HotPatchList", {}).get("Package", {}).get("hotpatch", [])
             logger.info(hotpatch_result)
             if hotpatch_result and isinstance(hotpatch_result, dict):
