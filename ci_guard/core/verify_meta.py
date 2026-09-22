@@ -21,7 +21,7 @@ from compare_version import CompareVersion
 from logger import logger
 
 from conf import config
-from api.gitcode import Gitcode
+from api.atomgit import Atomgit
 from command import command
 
 
@@ -47,7 +47,7 @@ class VerifyHotPatchMeta:
         self.output = output
         self.patch_list = patch_list
         self.mode = mode
-        self.gitcode = Gitcode(config.repo, owner=config.warehouse_owner)
+        self.atomgit = Atomgit(config.repo, owner=config.warehouse_owner)
 
     def parse_from_meta_file(self, meta_file):
         meta_info = []
@@ -193,7 +193,7 @@ class VerifyHotPatchMeta:
         return 0
 
     def check_hotpatch_issue(self, hotpatch_issue):
-        hotpatch_issue_resp = self.gitcode.get_issue(hotpatch_issue.split("/")[-1])
+        hotpatch_issue_resp = self.atomgit.get_issue(hotpatch_issue.split("/")[-1])
         logger.warning(hotpatch_issue_resp)
         if not hotpatch_issue_resp:
             return self.comment_metadata_pr("获取热补丁issue失败")
@@ -256,8 +256,8 @@ class VerifyHotPatchMeta:
                 file.write("modify_version:%s\n" % " ".join(changed_version_list))
         else:
             if only_status_changed:
-                self.gitcode.remove_tag(self.pull_request, "ci_processing")
-                self.gitcode.create_tag(self.pull_request, "ci_successful")
+                self.atomgit.remove_tag(self.pull_request, "ci_processing")
+                self.atomgit.create_tag(self.pull_request, "ci_successful")
                 logger.warning("only status is modify, don't need make hotpatch")
 
         checkout_cmd = ["git", "checkout", f"pr_{self.pull_request}"]
@@ -285,15 +285,15 @@ class VerifyHotPatchMeta:
     def comment_metadata_pr(self, err_info):
         body_str = "热补丁制作流程已中止，错误信息：%s" % err_info
         logger.error(err_info)
-        self.gitcode.create_pr_comment(self.pull_request, body_str)
-        self.gitcode.remove_tag(self.pull_request, "ci_processing")
-        self.gitcode.create_tag(self.pull_request, "ci_failed")
+        self.atomgit.create_pr_comment(self.pull_request, body_str)
+        self.atomgit.remove_tag(self.pull_request, "ci_processing")
+        self.atomgit.create_tag(self.pull_request, "ci_failed")
         return -1
 
     def verify(self):
-        self.gitcode.remove_tag(self.pull_request, "ci_successful")
-        self.gitcode.remove_tag(self.pull_request, "ci_failed")
-        self.gitcode.create_tag(self.pull_request, "ci_processing")
+        self.atomgit.remove_tag(self.pull_request, "ci_successful")
+        self.atomgit.remove_tag(self.pull_request, "ci_failed")
+        self.atomgit.create_tag(self.pull_request, "ci_processing")
         result = self.get_update_info()
         if result == 0:
             sys.exit(0)

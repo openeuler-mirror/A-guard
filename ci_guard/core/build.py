@@ -26,7 +26,7 @@ from logger import logger
 from abc import ABCMeta, abstractmethod
 from pathlib import Path
 from api.build_env import OpenBuildService
-from api.gitcode import Gitcode
+from api.atomgit import Atomgit
 from conf import config
 from command import command
 from contextlib import contextmanager
@@ -121,8 +121,8 @@ class BuildMeta(metaclass=ABCMeta):
             List[str]: target package names, e.g. ["bar", "kernel-rt"]
         """
         try:
-            gitcode_api = Gitcode(self.origin_package, owner=config.warehouse_owner)
-            files = gitcode_api.get_pr_files(self.pr_num)
+            atomgit_api = Atomgit(self.origin_package, owner=config.warehouse_owner)
+            files = atomgit_api.get_pr_files(self.pr_num)
             if not files or not isinstance(files, list):
                 return []
             spec_files = []
@@ -273,7 +273,7 @@ class EbsBuildVerify(BuildMeta):
         elif self.platform == "gitee":
             return f"https://gitee.com"
         else:
-            return f"https://gitcode.com"
+            return f"https://atomgit.com"
     
     @property
     def os_variant(self):
@@ -1411,11 +1411,18 @@ class EbsBuildVerify(BuildMeta):
             if isinstance(package_build_results, dict)
             else ("result", package_build_results)
         )
-        current_result_judge = any(
-            package_build_result.get(result_field) not in ["success", "excluded"]
-            for package_build_result in package_build_resultes
-        )
-        current_result = "failed" if current_result_judge else "success"
+        if not package_build_resultes:
+            # 构建未真正执行（查询无数据）时结果为空，不能误判为成功
+            current_result = "failed"
+            logger.error(
+                "No package build results returned, build may not have actually executed"
+            )
+        else:
+            current_result_judge = any(
+                package_build_result.get(result_field) not in ["success", "excluded"]
+                for package_build_result in package_build_resultes
+            )
+            current_result = "failed" if current_result_judge else "success"
         if current_result == "failed":
             logger.error(f"Package build failed:{package_build_results}")
         check_result = dict(
@@ -1449,7 +1456,7 @@ class ObsBuildVerify(BuildMeta):
     Package build check
     """
 
-    src_openeuler_ulr = "https://gitcode.com/src-openeuler"
+    src_openeuler_ulr = "https://atomgit.com/src-openeuler"
 
     def __init__(
         self,
@@ -1471,7 +1478,7 @@ class ObsBuildVerify(BuildMeta):
         self.arch = arch
         self.p_project = ProjectMapping()
         self.origin_package, self.pr_num = extract_repo_pull(pull_request)
-        self.gitcode = Gitcode(self.origin_package)
+        self.atomgit = Atomgit(self.origin_package)
         self.target_branch = target_branch
         self.multiple = multiple
         self.ignore = ignore
@@ -1886,8 +1893,8 @@ class ObsBuildVerify(BuildMeta):
                             GIT_FETCH, "code"
                         )  # kernel special logical
                     else:
-                        gitcode_repo = re.sub(r"\.git", "", param.text.split("/")[-1])
-                        param.text = "{}/{}".format(GIT_FETCH, gitcode_repo)
+                        atomgit_repo = re.sub(r"\.git", "", param.text.split("/")[-1])
+                        param.text = "{}/{}".format(GIT_FETCH, atomgit_repo)
 
         logger.info("after update meta------")
 
@@ -2131,7 +2138,7 @@ class ObsBuildVerify(BuildMeta):
         """
         package_build_results = dict()
         for sig_build_result in build_results:
-            package_committer = self.gitcode.package_committer(
+            package_committer = self.atomgit.package_committer(
                 [sig_build_result.get("package")]
             )
             package_build_results.update(
