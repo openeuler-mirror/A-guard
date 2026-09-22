@@ -15,23 +15,23 @@ from conf import config
 from . import Api
 
 
-class Gitcode(Api):
+class Atomgit(Api):
     """
-    Gitcode is a helper class to abstract gitcode.com api
+    Atomgit is a helper class to abstract atomgit.com api
     """
 
-    host = "https://api.gitcode.com/api/v5/repos"
+    host = "https://api.atomgit.com/api/v5/repos"
     pkg_info_url = "https://www.openeuler.org/api-omapi/query/sig/info"
 
     def __init__(self, repo, owner="src-openeuler", token=None):
-        super(Gitcode, self).__init__()
+        super(Atomgit, self).__init__()
         self._owner = owner
         self._repo = repo
         if not all([self._owner, self._repo]):
             raise ValueError("Calling the api must pass the owner repo parameters.")
-        self._token = token or config.gitcode_token
+        self._token = token or config.atomgit_token
         if not self._token:
-            raise ValueError("Gitcode private token cannot be empty.")
+            raise ValueError("Atomgit private token cannot be empty.")
 
     def _params(self, **kwargs):
         if not kwargs:
@@ -132,5 +132,5 @@ class Gitcode(Api):
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
         return self._get(url, self._params(body=body))
     def get_issue(self, cve_issue, enterprises="open_euler"):
-        issue_url = f"https://api.gitcode.com/api/v5/enterprises/{enterprises}/issues/{cve_issue}"
+        issue_url = f"https://api.atomgit.com/api/v5/enterprises/{enterprises}/issues/{cve_issue}"
         return self._get(issue_url, params=self._params())

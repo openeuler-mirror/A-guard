@@ -107,6 +107,10 @@ class Configs:
             if set_val:
                 setattr(self, config_item, set_val)
 
+        # Jenkins 侧仍注入 platform=gitcode，系统内统一归一化为 atomgit
+        if getattr(self, "platform", None) == "gitcode":
+            self.platform = "atomgit"
+
     @staticmethod
     def load_settings(settings_file):
         """

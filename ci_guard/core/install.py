@@ -15,7 +15,7 @@ import json
 import re
 import yaml
 from pathlib import Path
-from api.gitcode import Gitcode
+from api.atomgit import Atomgit
 from logger import logger
 from command import command
 from core import (
@@ -200,10 +200,10 @@ class InstallBase:
         installed_failed_rpms = dict()
         repo_rpm_map = self.repo_rpm_map()
         for package in archive_rpms:
-            gitcode_api = Gitcode(repo=package)
+            atomgit_api = Atomgit(repo=package)
             binary_rpms = repo_rpm_map.get(package, set())
             status = "success" if not binary_rpms.intersection(failed) else "failed"
-            commitor = gitcode_api.package_committer(
+            commitor = atomgit_api.package_committer(
                 package_names=[package]
             )
             if status == "failed":

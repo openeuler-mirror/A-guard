@@ -33,7 +33,7 @@ elif [[ ${platform} == "gitee" ]]; then
     pr=https://gitee.com/${repo_owner}/${repo}/pulls/${prid}
 else
     repo_server_test_tail=""
-    pr=https://gitcode.com/${repo_owner}/${repo}/pull/${prid}
+    pr=https://atomgit.com/${repo_owner}/${repo}/pull/${prid}
 fi
 
 fileserver_user_path="/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}${variant_suffix}/${prid}/${repo_comment}/$commentid"
@@ -68,7 +68,7 @@ EOF
 
 function update_config(){
     echo "============ Start synchronizing jenkin environment variables ============"
-    sed -i "/^gitcode_token: */cgitcode_token: ${gitcodeToken}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^atomgit_token: */catomgit_token: ${gitcodeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^gitee_token: */cgitee_token: ${GiteeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^requires_repo: */crequires_repo: ${buddy}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^build_env_account: */cbuild_env_account: ${OBSSecondaryUserName}" ${shell_path}/ci_guard/conf/config.yaml
@@ -196,11 +196,11 @@ function compare_difference(){
 }
 
 function abi_compare(){
-    pr_link='https://gitcode.com/'${repo_owner}/${repo}'/pull/'${prid}
+    pr_link='https://atomgit.com/'${repo_owner}/${repo}'/pull/'${prid}
     pr_commit_json_file="${WORKSPACE}/pr_commit_json_file"
     # comment_file="${repo}_${prid}_${arch}_comment"
     if [[ ${platform} != "github" ]]; then
-        curl https://api.gitcode.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files?access_token=$gitcodeToken >$pr_commit_json_file
+        curl https://api.atomgit.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files?access_token=$gitcodeToken >$pr_commit_json_file
     fi
     compare_result="${repo}_${prid}_${arch}${variant_suffix}_compare_result"
     export PYTHONPATH=${shell_pathoe}
@@ -266,7 +266,7 @@ EOF
 
     python3 ${shell_pathoe}/src/utils/oemaker_analyse.py --branch ${tbranch} --arch ${arch} \
 	--oecp_json_path "$result_dir/report-$old_dir-$new_dir/osv.json" --owner "src-openeuler" \
-	--repo ${repo} --gitcode_token $gitcodeToken --prid ${prid}
+	--repo ${repo} --atomgit_token $gitcodeToken --prid ${prid}
 }
 
 function check_single_build(){
@@ -413,7 +413,7 @@ function print_job(){
     job_name=`echo $JOB_NAME|sed -e 's#/#/job/#g'`
     job_path="https://ci.openeuler.openatom.cn/job/${job_name}/$BUILD_ID/console"
     body_str="${arch_display}架构构建及构建后检查：<a href=${job_path}>${JOB_NAME}/${BUILD_ID}/console</a>"
-    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.gitcode.com/api/v5/repos/src-openeuler/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${gitcodeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
+    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/src-openeuler/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${gitcodeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
 }
 
 function main(){
