@@ -1,6 +1,8 @@
 .DS_Store
 */.DS_Store
 *.pyc
+__pycache__/
+.pytest_cache/
 *.vscode
 /web-ui/node_modules
 /web-ui/package-lock.json
