@@ -410,9 +410,9 @@ function print_job(){
     else
         arch_display="${arch}"
     fi
-    job_name=`echo $JOB_NAME|sed -e 's#/#/job/#g'`
-    job_path="https://ci.openeuler.openatom.cn/job/${job_name}/$BUILD_ID/console"
-    body_str="${arch_display}架构构建及构建后检查：<a href=${job_path}>${JOB_NAME}/${BUILD_ID}/console</a>"
+    job_name=`echo $JOB_NAME|sed -e 's#/job/#/#g'`
+    job_path="https://log-ci.openeuler.openatom.cn/job/${job_name}/$BUILD_ID/"
+    body_str="${arch_display}架构构建及构建后检查：<a href=${job_path}>${job_name}/${BUILD_ID}</a>"
     curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/src-openeuler/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${gitcodeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
 }
 
