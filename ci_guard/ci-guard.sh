@@ -425,6 +425,13 @@ function retry_command() {
 }
 
 function print_job() {
+    # Action 链路（workflow 注入 ACTION_PIPELINE_URL/ACTION_RUN_NUMBER）跳过：
+    # 其日志为 workflow run 链接，且由 build-comment 汇总评论统一回显，
+    # 此处逐架构发评论只会产生重复内容并拼出 Jenkins 假链接
+    if [[ -n "${ACTION_PIPELINE_URL:-}${ACTION_RUN_NUMBER:-}" ]]; then
+        echo "Action 环境，跳过 print_job（日志链接由 build-comment 汇总评论提供）"
+        return 0
+    fi
     if [[ -n "$variant" ]]; then
         arch_display="${arch}(${variant})"
     else
@@ -480,6 +487,10 @@ function main() {
         config_osc
         update_repo
     fi
+
+    # 构建入口评论：Jenkins 环境下链接日志服务器，便于构建期间先给出日志入口；
+    # Action 环境在函数内判定跳过（见 print_job）
+    print_job
 
     # build 失败即无 rpm 产物，跳过 install/license/oecp（保持短路）；
     # build 成功才依次跑 install/license，并各自失败累计进最终结果overall_rc；
