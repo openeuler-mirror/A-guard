@@ -71,7 +71,7 @@ obs_nodes:
 ebs_server: http://172.16.9.179:30108
 
 # license sbom website
-sbom_server: http://120.46.72.76:15551
+sbom_server: http://172.16.2.173:15551
 
 # EMS bootstrap node mapping
 bootstrap_nodes:
