@@ -2,23 +2,23 @@
 gitee_token:
 atomgit_token:
 
-# repo depend 
-requires_repo: 
+# repo depend
+requires_repo:
 
 # The user who builds the environment
-build_env_account: 
+build_env_account:
 
 # Build environment user password
-build_env_passwd: 
+build_env_passwd:
 
 # Owner of the warehouse
-warehouse_owner: 
+warehouse_owner:
 
 # Host address of the build environment
-build_host: 
+build_host:
 
 # File Server address
-files_server: 
+files_server:
 
 # Oecp software package comparison tool comparison result output file
 compare_result:
@@ -36,7 +36,7 @@ pr:
 repo:
 
 # submitter
-committer: 
+committer:
 
 # Mysql database host
 db_host:
@@ -50,9 +50,9 @@ user_passwd:
 # Pr comment id
 commentid:
 
-branch: 
+branch:
 
-build_env: 
+build_env:
 
 # Trigger build id
 build_id:
@@ -80,8 +80,8 @@ bootstrap_nodes:
   "http://192.168.164.96:20029": "ems3"
   "http://192.168.86.7:20029": "ems4"
 
-# code platform gitcode/gitee/github
-platform: gitcode
+# code platform atomgit/gitee/github
+platform: atomgit
 
 # 构建变体标识（可选），如 64k
 variant:
