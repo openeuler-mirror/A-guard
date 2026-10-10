@@ -443,9 +443,44 @@ function print_job() {
     curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/src-openeuler/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${gitcodeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
 }
 
+# 从文件服务器拉取 trigger 阶段上传的 per-spec support_arch 与 spec_list。
+# Jenkins 链路使用；Action 链路改由 build_entry.sh 的 _restore_ac_spec_files 从 AC 制品还原。
+# 文件不可达时 fail-soft，交由 main 的保守全架构构建兜底，不阻断门禁。
+function fetch_support_arch_from_server() {
+    local support_arch_prefix=${repo}_${prid}_support_arch_
+
+    # 下载所有 per-spec support_arch 文件（供构建决策与 build.py 结果修正阶段读取）
+    retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        root@${repo_server}:/repo/soe${repo_server_test_tail}/support_arch/${support_arch_prefix}* ." 2>/dev/null || true
+    # 去掉 {repo}_{prid}_ 前缀，还原为 support_arch_{spec_name}（构建决策按 spec 名精确匹配）
+    for f in ${support_arch_prefix}*; do
+        if [[ -e "$f" ]]; then
+            mv "$f" "support_arch_${f#${support_arch_prefix}}"
+        fi
+    done
+
+    # 下载 spec_list 清单（trigger 阶段生成，PR 修改的全部 spec 名）
+    local spec_list_remote=${repo}_${prid}_spec_list
+    retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile=/dev/null \
+        root@${repo_server}:/repo/soe${repo_server_test_tail}/support_arch/${spec_list_remote} ." 2>/dev/null || true
+    if [[ -e "$spec_list_remote" ]]; then
+        mv "$spec_list_remote" "spec_list"
+    fi
+}
+
 function main() {
-    # spec_list/support_arch 由 AC job 经平台 artifact 传递，由 build_entry.sh 的
-    # _restore_ac_spec_files 还原到本目录。本地缺文件时保守全架构构建，不阻断门禁。
+    # spec_list/support_arch 来源分两条链路：
+    # - Jenkins：无平台制品，从文件服务器拉取 trigger 阶段上传的文件
+    # - Action：AC 制品已由 build_entry.sh 的 _restore_ac_spec_files 还原到本目录
+    # Action 环境（workflow 注入 ACTION_PIPELINE_URL/ACTION_RUN_NUMBER，判定同 print_job）
+    # 跳过下载，避免重复拉取/覆盖制品还原的结果。
+    if [[ -z "${ACTION_PIPELINE_URL:-}${ACTION_RUN_NUMBER:-}" ]]; then
+        fetch_support_arch_from_server
+    else
+        echo "Action 环境，spec_list/support_arch 由 AC 制品还原，跳过文件服务器下载"
+    fi
 
     # 构建决策：
     # - 无 spec_list（旧 trigger 数据）→ 保守构建，不跳过
