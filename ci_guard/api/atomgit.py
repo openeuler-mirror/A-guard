@@ -23,7 +23,7 @@ class Atomgit(Api):
     host = "https://api.atomgit.com/api/v5/repos"
     pkg_info_url = "https://www.openeuler.org/api-omapi/query/sig/info"
 
-    def __init__(self, repo, owner="src-openeuler", token=None):
+    def __init__(self, repo, owner="src-openeuler", token=None, tag_token=None):
         super(Atomgit, self).__init__()
         self._owner = owner
         self._repo = repo
@@ -32,12 +32,22 @@ class Atomgit(Api):
         self._token = token or config.atomgit_token
         if not self._token:
             raise ValueError("Atomgit private token cannot be empty.")
+        # PR 标签（labels）操作专用 token，缺省依次回退 config.atomgit_tag_token、主 token
+        # （config 键缺失/空值时 getattr 返回 None，Jenkins 统一 token 流程下两者相同）
+        self._tag_token = tag_token or config.atomgit_tag_token or self._token
 
     def _params(self, **kwargs):
         if not kwargs:
             return dict(access_token=self._token)
         parameters = kwargs
         parameters.setdefault("access_token", self._token)
+        return parameters
+
+    def _tag_params(self, **kwargs):
+        if not kwargs:
+            return dict(access_token=self._tag_token)
+        parameters = kwargs
+        parameters.setdefault("access_token", self._tag_token)
         return parameters
 
     def create_pr_comment(self, number, body):
@@ -116,21 +126,21 @@ class Atomgit(Api):
         Create a repository tag
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
-        return self._post(url, self._params(body=json.dumps(body)))
+        return self._post(url, self._tag_params(body=json.dumps(body)))
 
     def remove_tag(self, pr_number, label):
         """
         Remove repository tag
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels/{label}"
-        return self._delete(url, params=self._params())
+        return self._delete(url, params=self._tag_params())
 
     def get_all_tag(self, pr_number, body):
         """
         Get pull all tags
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
-        return self._get(url, self._params(body=body))
+        return self._get(url, self._tag_params(body=body))
     def get_issue(self, cve_issue, enterprises="open_euler"):
         issue_url = f"https://api.atomgit.com/api/v5/enterprises/{enterprises}/issues/{cve_issue}"
         return self._get(issue_url, params=self._params())
