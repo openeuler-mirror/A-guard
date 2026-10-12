@@ -72,6 +72,8 @@ EOF
 function update_config() {
     echo "============ Start synchronizing jenkins environment variables ============"
     sed -i "/^atomgit_token: */catomgit_token: ${gitcodeToken}" ${shell_path}/ci_guard/conf/config.yaml
+    # 标签操作专用 token：缺省回退主 token（Jenkins 流程 gitcodeTagToken 未设置，同此回退）
+    sed -i "/^atomgit_tag_token: */catomgit_tag_token: ${gitcodeTagToken:-${gitcodeToken}}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^gitee_token: */cgitee_token: ${GiteeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^requires_repo: */crequires_repo: ${buddy}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^build_env_account: */cbuild_env_account: ${OBSSecondaryUserName}" ${shell_path}/ci_guard/conf/config.yaml

@@ -28,6 +28,7 @@
 #   ACTION_OWNER:             PR 目标仓实际 owner（ACTION_COMMUNITY 为改名前旧名，过渡兼容）
 #   ACTION_COMMENT_ID:        PR 评论 ID（可选）
 #   ACTION_GITCODE_TOKEN:     AtomGit API token (atomgit.token)
+#   ACTION_GITCODE_TAG_TOKEN: 标签操作专用 AtomGit API token（可选，缺省回退 ACTION_GITCODE_TOKEN）
 #   ACTION_GITEE_TOKEN:       Gitee API token（可选）
 #   ACTION_MYSQL_HOST/PORT/USER_PASSWD: MySQL 连接
 #   ACTION_OAUTH_ACCOUNT/PASSWORD:      EBS OAuth 凭据
@@ -59,6 +60,8 @@ export commentid=${ACTION_COMMENT_ID:-}
 
 # 代码平台 Token
 export gitcodeToken=${ACTION_GITCODE_TOKEN}
+# 标签操作专用 token：secret 未配置时为空串，须用 :- 回退主 token（Jenkins 流程同此回退）
+export gitcodeTagToken=${ACTION_GITCODE_TAG_TOKEN:-${ACTION_GITCODE_TOKEN}}
 export GiteeToken=${ACTION_GITEE_TOKEN:-}
 
 # MySQL
