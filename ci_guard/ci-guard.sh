@@ -533,17 +533,17 @@ function main() {
     # build 成功才依次跑 install/license，并各自失败累计进最终结果overall_rc；
     # oecp结果不纳入统计。
     overall_rc=0
-    check_single_build
-    build_rc=$?
+    build_rc=0
+    check_single_build || build_rc=$?
     if [ $build_rc -ne 0 ]; then
         overall_rc=1
     else
-        check_single_install
-        install_rc=$?
+        install_rc=0
+        check_single_install || install_rc=$?
         [ $install_rc -ne 0 ] && overall_rc=1
 
-        check_license
-        license_rc=$?
+        license_rc=0
+        check_license || license_rc=$?
         [ $license_rc -ne 0 ] && overall_rc=1
 
         compare_difference
