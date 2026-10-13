@@ -1,8 +1,6 @@
 # The token for the code cloud repository, choose one
 gitee_token:
 atomgit_token:
-# The token dedicated to PR label operations (falls back to atomgit_token if empty)
-atomgit_tag_token:
 
 # repo depend
 requires_repo:
