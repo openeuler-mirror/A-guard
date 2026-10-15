@@ -29,7 +29,7 @@ from .pull_link import Pull
 
 class InstallBase:
     """
-    EBS or OBS software package installation check
+    EBS software package installation check
     """
 
     install_cmds = os.path.join(os.path.dirname(__file__), "install.sh")

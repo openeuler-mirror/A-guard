@@ -37,7 +37,7 @@ class Analysis:
         self.pr_num = str(config.pr)
         if not all([self.package, self.pr_num]):
             raise RuntimeError(
-                "Please check whether the path, account and password of obs are fully configured"
+                "Please check whether the path, account and password of ebs are fully configured"
             )
 
     def _match_packge_name(self, rpm_name, choice=True):
