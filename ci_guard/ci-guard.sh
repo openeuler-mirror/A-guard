@@ -74,10 +74,7 @@ function update_config() {
     sed -i "/^atomgit_token: */catomgit_token: ${gitcodeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^gitee_token: */cgitee_token: ${GiteeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^requires_repo: */crequires_repo: ${buddy}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^build_env_account: */cbuild_env_account: ${OBSSecondaryUserName}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^build_env_passwd: */cbuild_env_passwd: ${OBSSecondaryPassword}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^warehouse_owner: */cwarehouse_owner: ${repo_owner}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^build_host: */cbuild_host: ${obs_webui_host}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^files_server: */cfiles_server: ${repo_server}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^workspace: */cworkspace: ${WORKSPACE}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^arch: */carch: ${arch}" ${shell_path}/ci_guard/conf/config.yaml
@@ -89,7 +86,6 @@ function update_config() {
     sed -i "/^user_passwd: */cuser_passwd: ${MysqlUserPasswd}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^commentid: */ccommentid: ${commentid}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^branch: */cbranch: ${tbranch}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^build_env: */cbuild_env: ${build_env}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^ebs_server: */cebs_server: ${ebs_server}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^platform: */cplatform: ${platform}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^variant: */cvariant: ${variant}" ${shell_path}/ci_guard/conf/config.yaml

@@ -5,17 +5,8 @@ atomgit_token:
 # repo depend
 requires_repo:
 
-# The user who builds the environment
-build_env_account:
-
-# Build environment user password
-build_env_passwd:
-
 # Owner of the warehouse
 warehouse_owner:
-
-# Host address of the build environment
-build_host:
 
 # File Server address
 files_server:
@@ -52,20 +43,8 @@ commentid:
 
 branch:
 
-build_env:
-
 # Trigger build id
 build_id:
-
-# OBS server
-obs_server: http://117.78.1.88
-
-# OBS backend node addresses
-obs_nodes:
-  main: http://119.3.219.20:82
-  backend_002: http://120.46.140.206:82
-  backend_003: http://121.36.94.113:82
-  backend_004: http://124.70.10.167:82
 
 # ebs website
 ebs_server: http://172.16.9.179:30108
