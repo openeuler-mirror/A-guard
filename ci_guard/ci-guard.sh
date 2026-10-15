@@ -117,7 +117,6 @@ function check_single_install() {
         return 1
     fi
     scp_remote_service
-    # python3 $SCRIPT_CMD comment -pr $pr
     echo "End check single install"
 }
 
@@ -128,7 +127,6 @@ function check_multiple_install() {
         echo "Multiple install check failed"
         scp_remote_service
     fi
-    # python3 $SCRIPT_CMD comment -pr $pr
     echo "End check multiple install"
 }
 
@@ -140,7 +138,6 @@ function check_multiple_build() {
         scp_remote_service
         exit 1
     fi
-    # python3 $SCRIPT_CMD comment -pr $pr
     echo "Multi package build succeeded"
 }
 
@@ -255,7 +252,6 @@ function check_single_build() {
         return 1
     fi
     scp_remote_service
-    # python3 $SCRIPT_CMD comment -pr $pr
     echo "Single package build successfully"
 }
 

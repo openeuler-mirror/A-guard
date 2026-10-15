@@ -18,7 +18,6 @@ from cli import (
     build,
     diff_analysis,
     install,
-    notify,
     pull_link,
     download_rpm,
     license,
@@ -72,7 +71,6 @@ class CiGroup(click.Group):
         self.add_command(hotpatch)
         self.add_command(install)
         self.add_command(build)
-        self.add_command(notify)
         self.add_command(diff_analysis)
         self.add_command(pull_link)
         self.add_command(download_rpm)

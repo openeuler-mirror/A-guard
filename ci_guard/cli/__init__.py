@@ -14,7 +14,6 @@ import sys
 from cli.hotpatch import hotpatch, verify_meta
 from cli.install import install
 from cli.build import build
-from cli.comment import notify
 from cli.analysis import diff_analysis
 from cli.pull_link import pull_link
 from cli.download import download_rpm
@@ -37,7 +36,6 @@ __all__ = (
     "install",
     "main",
     "build",
-    "notify",
     "diff_analysis",
     "pull_link",
     "download_rpm",
