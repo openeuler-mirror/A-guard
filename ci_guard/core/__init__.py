@@ -13,7 +13,6 @@
 import os
 import json
 from collections import Counter
-import yaml
 import constant
 from conf import config
 from logger import logger
@@ -37,14 +36,6 @@ def extract_repo_pull(pr: str):
     except IndexError:
         return repo, number
     return repo, number
-
-
-def get_test_project_name(repo, pr_number):
-    """
-    Get test project name
-    """
-    variant_part = f":{config.variant}" if config.variant else ""
-    return f"home:{config.build_env_account}:branches:{config.arch}{variant_part}:{repo}-{pr_number}"
 
 
 class ProcessRecords:
@@ -200,70 +191,3 @@ class ProcessRecords:
             return counter.get("success", 0), counter.get("failed", 0)
         except (AttributeError, TypeError) as error:
             return 0, 0
-
-
-class ProjectMapping:
-    """
-    Mapping of branches and projects
-    """
-
-    map_config = os.path.join(
-         os.path.dirname(os.path.dirname(__file__)), "conf", "branch_project_mapping.yaml"
-    )
-
-    def __init__(self) -> None:
-        self._map = dict()
-
-    def _load_config(self):
-        try:
-            with open(self.map_config, "r") as map_file:
-                self._map = yaml.safe_load(map_file)
-        except yaml.YAMLError as error:
-            logger.error(f"Parsing file branch_project_mapping.yaml failed: {error}")
-
-    def node_host(self, project):
-        """
-        Gets the host address of a specific project map
-        :param project: obs project name
-        """
-        if not self._map:
-            self._load_config()
-
-        obs_nodes = config.obs_nodes or {}
-        for node_map in self._map.get("node_mapping", []):
-            if project in node_map.get("projects", []):
-                node_name = node_map.get("host")
-                host = obs_nodes.get(node_name)
-                if not host:
-                    logger.warning(
-                        f"Node name {node_name} for project {project} not found in obs_nodes config."
-                    )
-                return host
-
-        logger.warning(f"The project is not in the mapped node: {project}.")
-
-    def branch_project(self, branch):
-        """
-        Warehouse branch corresponding obs project
-        """
-        if not self._map:
-            self._load_config()
-        for _branch, projects in self._map.get("branch_mapping", dict()).items():
-            if branch == _branch:
-                return projects
-
-        logger.warning(f"The branch has no corresponding project: {branch}.")
-
-    def project_repository(self, project, arch):
-        """
-        A repository for engineering architecture
-        :param project: obs project name
-        :param arch: architecture (x86/aarch64)
-        """
-        if not self._map:
-            self._load_config()
-        try:
-            return self._map["repository_mapping"][project][arch]
-        except KeyError:
-            logger.error(f"The branch has no corresponding project: {project}.")
-            return dict()

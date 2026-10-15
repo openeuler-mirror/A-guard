@@ -101,9 +101,6 @@ export BUILD_ID=${ACTION_RUN_ID:-0}
 # EBS 服务器（config.yaml 有默认值，这里保证非空以覆盖 sed 注入）
 export ebs_server=${ACTION_EBS_SERVER:-https://eulermaker.openeuler.openatom.cn}
 
-# 固定使用 EBS 构建后端
-export build_env=ebs
-
 # 64k 变体仅特定分支支持：目标分支不在 support_64k_branch 清单内时直接跳过
 if [[ -n "${variant}" ]]; then
     support_64k_branch_file="${shell_path}/ci_guard/conf/support_64k_branch"

@@ -74,10 +74,7 @@ function update_config() {
     sed -i "/^atomgit_token: */catomgit_token: ${gitcodeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^gitee_token: */cgitee_token: ${GiteeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^requires_repo: */crequires_repo: ${buddy}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^build_env_account: */cbuild_env_account: ${OBSSecondaryUserName}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^build_env_passwd: */cbuild_env_passwd: ${OBSSecondaryPassword}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^warehouse_owner: */cwarehouse_owner: ${repo_owner}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^build_host: */cbuild_host: ${obs_webui_host}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^files_server: */cfiles_server: ${repo_server}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^workspace: */cworkspace: ${WORKSPACE}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^arch: */carch: ${arch}" ${shell_path}/ci_guard/conf/config.yaml
@@ -89,42 +86,10 @@ function update_config() {
     sed -i "/^user_passwd: */cuser_passwd: ${MysqlUserPasswd}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^commentid: */ccommentid: ${commentid}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^branch: */cbranch: ${tbranch}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^build_env: */cbuild_env: ${build_env}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^ebs_server: */cebs_server: ${ebs_server}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^platform: */cplatform: ${platform}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^variant: */cvariant: ${variant}" ${shell_path}/ci_guard/conf/config.yaml
     echo "End of synchronous config"
-}
-
-function config_osc() {
-    echo "============ Start config osc ============"
-    if [[ -z "${OBSServer:-}" ]]; then
-        echo "Error: OBSServer environment variable is not set." >&2
-        exit 1
-    fi
-    cat >${JENKINS_HOME}/.oscrc <<EOF
-[general]
-apiurl = ${OBSServer}
-no_verify = 1
-build-root = ${BUILD_ROOT}
-
-[${OBSServer}]
-user = ${OBSUserName}
-pass = ${OBSPassword}
-trusted_prj = openEuler:22.03:LTS:SP2:selfbuild:BaseOS openEuler:22.03:LTS:SP1:selfbuild:BaseOS openEuler:Factory openEuler:Mainline openEuler:Epol openEuler:BaseTools openEuler:C openEuler:Common_Languages_Dependent_Tools openEuler:Erlang openEuler:Golang openEuler:Java openEuler:KernelSpace openEuler:Lua openEuler:Meson openEuler:MultiLanguage openEuler:Nodejs openEuler:Ocaml openEuler:Perl openEuler:Python openEuler:Qt openEuler:Ruby openEuler:selfbuild:BaseOS openEuler:22.09:selfbuild:BaseOS openEuler:22.03:LTS:LoongArch:selfbuild:BaseOS openEuler:22.03:LTS:selfbuild:BaseOS openEuler:22.03:LTS:Next:selfbuild:BaseOS openEuler:20.03:LTS:SP3:selfbuild:BaseOS openEuler:selfbuild:BaseOS openEuler:20.03:LTS:selfbuild:BaseOS openEuler:selfbuild:function openEuler:20.09:selfbuild:BaseOS openEuler:20.03:LTS:SP1:selfbuild:BaseOS openEuler:21.03:selfbuild:BaseOS openEuler:20.03:LTS:SP2:selfbuild:BaseOS openEuler:21.09:selfbuild:BaseOS openEuler:20.03:LTS:Next:selfbuild:BaseOS openEuler:23.03:selfbuild:BaseOS # 不用输0,1,2了
-EOF
-    echo "Successful installed osc"
-}
-
-function update_repo() {
-    echo "Start updating the repo source files"
-    python3 $SCRIPT_CMD initrepo
-    if [ $? -ne 0 ]; then
-        echo "Failed to update repo source"
-        exit 1
-    fi
-    cat ${WORKSPACE}/ci-tools.repo
-    echo "Update repo source successful"
 }
 
 function scp_remote_service() {
@@ -148,7 +113,6 @@ function check_single_install() {
         return 1
     fi
     scp_remote_service
-    # python3 $SCRIPT_CMD comment -pr $pr
     echo "End check single install"
 }
 
@@ -159,7 +123,6 @@ function check_multiple_install() {
         echo "Multiple install check failed"
         scp_remote_service
     fi
-    # python3 $SCRIPT_CMD comment -pr $pr
     echo "End check multiple install"
 }
 
@@ -171,7 +134,6 @@ function check_multiple_build() {
         scp_remote_service
         exit 1
     fi
-    # python3 $SCRIPT_CMD comment -pr $pr
     echo "Multi package build succeeded"
 }
 
@@ -286,7 +248,6 @@ function check_single_build() {
         return 1
     fi
     scp_remote_service
-    # python3 $SCRIPT_CMD comment -pr $pr
     echo "Single package build successfully"
 }
 
@@ -348,7 +309,7 @@ function oecp_compare() {
     scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${repo_server}:$ci_server_dir/*.rpm $old_dir || echo log_info "file ${ci_server_dir} not exist"
 
     if [[ ! "$(ls -A $old_dir | grep '.rpm')" && "$(ls -A $new_dir | grep '.rpm')" ]]; then
-        python3 $SCRIPT_CMD download -p $repo -b $tbranch -a $arch
+        python3 $SCRIPT_CMD download -p $repo -a $arch
         if [[ -d $old_dir/binaries && "$(ls -A $old_dir/binaries | grep '\.rpm$')" ]]; then
             cp $old_dir/binaries/*.rpm $old_dir
             sudo rm -rf $old_dir/binaries
@@ -515,13 +476,8 @@ function main() {
     remote_dir_make
     clean_env
     update_config
-    if [ $build_env == 'ebs' ]; then
-        config_ebs
-        update_ccb
-    else
-        config_osc
-        update_repo
-    fi
+    config_ebs
+    update_ccb
 
     # 构建入口评论：Jenkins 环境下链接日志服务器，便于构建期间先给出日志入口；
     # Action 环境在函数内判定跳过（见 print_job）
@@ -549,26 +505,4 @@ function main() {
 
     scp_remote_service
     return ${overall_rc}
-}
-
-function link_pull() {
-    echo "Start link pr"
-    update_config
-    update_repo
-    tpr=${comment///pull-link/""}
-    python3 $SCRIPT_CMD link --behavior link -pr $pr -tpr $tpr
-}
-
-function merge() {
-    echo "Start merge PR: $pr"
-    update_config
-    update_repo
-    python3 $SCRIPT_CMD link --behavior sync -pr $pr
-}
-
-function forced_merge() {
-    echo "Start forced merge PR: $pr"
-    update_config
-    update_repo
-    python3 $SCRIPT_CMD link --behavior forced -pr $pr
 }

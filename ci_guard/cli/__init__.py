@@ -14,11 +14,9 @@ import sys
 from cli.hotpatch import hotpatch, verify_meta
 from cli.install import install
 from cli.build import build
-from cli.comment import notify
 from cli.analysis import diff_analysis
 from cli.pull_link import pull_link
 from cli.download import download_rpm
-from cli.initrepo import init_repo
 from cli.license import license
 from cli.base import CiGroup
 
@@ -38,11 +36,9 @@ __all__ = (
     "install",
     "main",
     "build",
-    "notify",
     "diff_analysis",
     "pull_link",
     "download_rpm",
-    "init_repo",
     "hotpatch",
     "verify_meta",
     "license",
