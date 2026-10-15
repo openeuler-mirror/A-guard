@@ -18,7 +18,6 @@ from cli.comment import notify
 from cli.analysis import diff_analysis
 from cli.pull_link import pull_link
 from cli.download import download_rpm
-from cli.initrepo import init_repo
 from cli.license import license
 from cli.base import CiGroup
 
@@ -42,7 +41,6 @@ __all__ = (
     "diff_analysis",
     "pull_link",
     "download_rpm",
-    "init_repo",
     "hotpatch",
     "verify_meta",
     "license",

@@ -96,37 +96,6 @@ function update_config() {
     echo "End of synchronous config"
 }
 
-function config_osc() {
-    echo "============ Start config osc ============"
-    if [[ -z "${OBSServer:-}" ]]; then
-        echo "Error: OBSServer environment variable is not set." >&2
-        exit 1
-    fi
-    cat >${JENKINS_HOME}/.oscrc <<EOF
-[general]
-apiurl = ${OBSServer}
-no_verify = 1
-build-root = ${BUILD_ROOT}
-
-[${OBSServer}]
-user = ${OBSUserName}
-pass = ${OBSPassword}
-trusted_prj = openEuler:22.03:LTS:SP2:selfbuild:BaseOS openEuler:22.03:LTS:SP1:selfbuild:BaseOS openEuler:Factory openEuler:Mainline openEuler:Epol openEuler:BaseTools openEuler:C openEuler:Common_Languages_Dependent_Tools openEuler:Erlang openEuler:Golang openEuler:Java openEuler:KernelSpace openEuler:Lua openEuler:Meson openEuler:MultiLanguage openEuler:Nodejs openEuler:Ocaml openEuler:Perl openEuler:Python openEuler:Qt openEuler:Ruby openEuler:selfbuild:BaseOS openEuler:22.09:selfbuild:BaseOS openEuler:22.03:LTS:LoongArch:selfbuild:BaseOS openEuler:22.03:LTS:selfbuild:BaseOS openEuler:22.03:LTS:Next:selfbuild:BaseOS openEuler:20.03:LTS:SP3:selfbuild:BaseOS openEuler:selfbuild:BaseOS openEuler:20.03:LTS:selfbuild:BaseOS openEuler:selfbuild:function openEuler:20.09:selfbuild:BaseOS openEuler:20.03:LTS:SP1:selfbuild:BaseOS openEuler:21.03:selfbuild:BaseOS openEuler:20.03:LTS:SP2:selfbuild:BaseOS openEuler:21.09:selfbuild:BaseOS openEuler:20.03:LTS:Next:selfbuild:BaseOS openEuler:23.03:selfbuild:BaseOS # 不用输0,1,2了
-EOF
-    echo "Successful installed osc"
-}
-
-function update_repo() {
-    echo "Start updating the repo source files"
-    python3 $SCRIPT_CMD initrepo
-    if [ $? -ne 0 ]; then
-        echo "Failed to update repo source"
-        exit 1
-    fi
-    cat ${WORKSPACE}/ci-tools.repo
-    echo "Update repo source successful"
-}
-
 function scp_remote_service() {
     echo "Start copy the check result file to the remote file server"
     chmod 755 $WORKSPACE/records-course/${repo_comment}
@@ -515,13 +484,8 @@ function main() {
     remote_dir_make
     clean_env
     update_config
-    if [ $build_env == 'ebs' ]; then
-        config_ebs
-        update_ccb
-    else
-        config_osc
-        update_repo
-    fi
+    config_ebs
+    update_ccb
 
     # 构建入口评论：Jenkins 环境下链接日志服务器，便于构建期间先给出日志入口；
     # Action 环境在函数内判定跳过（见 print_job）
@@ -549,26 +513,4 @@ function main() {
 
     scp_remote_service
     return ${overall_rc}
-}
-
-function link_pull() {
-    echo "Start link pr"
-    update_config
-    update_repo
-    tpr=${comment///pull-link/""}
-    python3 $SCRIPT_CMD link --behavior link -pr $pr -tpr $tpr
-}
-
-function merge() {
-    echo "Start merge PR: $pr"
-    update_config
-    update_repo
-    python3 $SCRIPT_CMD link --behavior sync -pr $pr
-}
-
-function forced_merge() {
-    echo "Start forced merge PR: $pr"
-    update_config
-    update_repo
-    python3 $SCRIPT_CMD link --behavior forced -pr $pr
 }
