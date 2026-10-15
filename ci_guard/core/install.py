@@ -20,8 +20,6 @@ from logger import logger
 from command import command
 from core import (
     extract_repo_pull,
-    get_test_project_name,
-    ProjectMapping,
     ProcessRecords,
 )
 import constant
@@ -488,80 +486,6 @@ class InstallBase:
         return self._multiple_install_check(
             download_rpms, list(archive_rpms), install_cmd_failed=install_cmd_failed
         )
-
-
-class InstallVerify(InstallBase):
-    """
-    Single package or multiple package installation check
-    """
-
-    def __init__(self, arch=None, target_branch=None, ignore=False, variant=None) -> None:
-        super().__init__(arch, target_branch, ignore, variant)
-
-    @property
-    def repository(self):
-        """
-        Repository schema mapping
-        """
-        repository = "standard_x86_64" if self._arch == "x86_64" else "standard_aarch64"
-        return repository
-
-    def update_repo(self, branch=config.branch):
-        """
-        update repo
-        :param branch: Warehouse branch
-        """
-        logger.info(f"Start updating the repo source: {branch}")
-        p_map = ProjectMapping()
-        projects = p_map.branch_project(branch=branch)
-        if not projects:
-            raise ValueError(
-                "Currently branch is not supported. Please update the configuration file"
-            )
-        update_repo_status = []
-        for project in projects:
-            host = p_map.node_host(project=project)
-            if not host:
-                continue
-            code, _, error = command(
-                cmds=[
-                    "bash",
-                    self.install_cmds,
-                    "update_repo",
-                    project,
-                    host,
-                    self.repository,
-                ]
-            )
-            update_repo_status.append(code)
-            if code:
-                logger.error(
-                    f"The repo source update failed, project: {project} detail: {error}."
-                )
-        return False if any(update_repo_status) else True
-
-    def _download_rpms(self, download_rpms: list):
-        """
-        Download archived or compiled binaries using the OSC
-        :param download_rpms: Rpm to be downloaded
-        """
-        rpms = {
-            repo: get_test_project_name(repo, pull)
-            for repo, pull in download_rpms.items()
-        }
-
-        os.makedirs(constant.DOWNLOAD_RPM_DIR, exist_ok=True)
-        for package, project in rpms.items():
-            cmds = f"bash {self.install_cmds} download_binarys {project} {package} {self.repository} {self._arch}"
-            code, _, error = command(
-                cmds=cmds.split(),
-                cwd=constant.DOWNLOAD_RPM_DIR,
-            )
-
-            if code:
-                logger.warning(
-                    f"Failed to download the rpm package,project: {project} package: {package} error detail: {error}."
-                )
 
 
 class UnifyBuildInstallVerify(InstallBase):

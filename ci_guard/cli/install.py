@@ -14,7 +14,7 @@ import sys
 import os
 import click
 import constant
-from core.install import InstallVerify, UnifyBuildInstallVerify
+from core.install import UnifyBuildInstallVerify
 from core import ProcessRecords
 from conf import config
 
@@ -76,9 +76,7 @@ def install(arch, pull_request, target_branch, packages, multiple, ignore, varia
         click.echo(click.style("Missing software package", fg="red"))
         exit(1)
 
-    # Selecting the build environment
-    build_env = InstallVerify if config.build_env == "obs" else UnifyBuildInstallVerify
-    install_verify = build_env(arch=arch, target_branch=target_branch, ignore=ignore, variant=variant)
+    install_verify = UnifyBuildInstallVerify(arch=arch, target_branch=target_branch, ignore=ignore, variant=variant)
 
     install_check = install_verify.install(
         pull_request=pull_request, multiple=multiple, packages=packages

@@ -317,7 +317,7 @@ function oecp_compare() {
     scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${repo_server}:$ci_server_dir/*.rpm $old_dir || echo log_info "file ${ci_server_dir} not exist"
 
     if [[ ! "$(ls -A $old_dir | grep '.rpm')" && "$(ls -A $new_dir | grep '.rpm')" ]]; then
-        python3 $SCRIPT_CMD download -p $repo -b $tbranch -a $arch
+        python3 $SCRIPT_CMD download -p $repo -a $arch
         if [[ -d $old_dir/binaries && "$(ls -A $old_dir/binaries | grep '\.rpm$')" ]]; then
             cp $old_dir/binaries/*.rpm $old_dir
             sudo rm -rf $old_dir/binaries
