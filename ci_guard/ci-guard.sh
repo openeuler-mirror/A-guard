@@ -64,6 +64,10 @@ fi
 if [[ -e "$fileserver_tmpfile_path/${repo}-${arch}-${prid}" ]]; then
     rm $fileserver_tmpfile_path/${repo}-${arch}-${prid}
 fi
+# 清理上一轮残留的 comment 结果文件
+if [[ -e "$fileserver_tmpfile_path/${repo_comment}" ]]; then
+    rm $fileserver_tmpfile_path/${repo_comment}
+fi
 EOF
     )
     ssh -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR root@${repo_server} "$remote_dir_reset_cmd"
