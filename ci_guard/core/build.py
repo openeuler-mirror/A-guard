@@ -1402,11 +1402,22 @@ class EbsBuildVerify(BuildMeta):
         process_record = ProcessRecords(self.origin_package, self.pr_num)
         if self.multiple:
             depend_list, _ = process_record.depend()
-            package_build_results = self.build_prep_multi(depend_list)
             steps = "multi_build_check"
+            try:
+                package_build_results = self.build_prep_multi(depend_list)
+            except Exception as error:
+                # EBS 工程操作/编译触发阶段异常（如无权限更新工程、ccb 命令失败）：
+                # 打印 error 并按构建失败返回，确保评论文件能记录 build_check 失败结果
+                logger.error(f"Multi package build failed: {error}")
+                package_build_results = []
         else:
-            package_build_results = self.build_prep_single()
             steps = "single_build_check"
+            try:
+                package_build_results = self.build_prep_single()
+            except Exception as error:
+                # 同上：构建准备阶段任何异常都收敛为构建失败
+                logger.error(f"Single package build failed: {error}")
+                package_build_results = []
         # 按 PR 实际变更的 spec 文件过滤编译结果
         package_build_results = self.filter_by_changed_specs(package_build_results)
         # 关键修正：因 ExclusiveArch 不支持当前架构而失败的包 → 修正为 excluded
