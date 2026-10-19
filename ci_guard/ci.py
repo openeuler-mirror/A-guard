@@ -21,5 +21,6 @@ else:
     try:
         main()
     except (RuntimeError, CiError) as error:
-        click.echo(click.style(error, fg="red"))
+        # error 是异常对象，必须转 str，否则 click.style 抛 TypeError 掩盖真实错误信息
+        click.echo(click.style(str(error), fg="red"))
         exit(1)
