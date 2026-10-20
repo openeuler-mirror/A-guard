@@ -209,18 +209,23 @@ EOF
 
     if [[ -e $result_dir/report-$old_dir-$new_dir/osv.json && "$(ls -A $old_dir | grep '.rpm')" && "$(ls -A $new_dir | grep '.rpm')" ]]; then
         old_any_rpm=$(ls $old_dir | head -n 1)
-        old_version=$(rpm -q $old_dir/$old_any_rpm --queryformat '%{version}\n')
-        old_release=$(rpm -q $old_dir/$old_any_rpm --queryformat '%{release}\n')
-        old_release=${old_release%%\.oe1}
         new_any_rpm=$(ls $new_dir | head -n 1)
-        new_version=$(rpm -q $new_dir/$new_any_rpm --queryformat '%{version}\n')
-        new_release=$(rpm -q $new_dir/$new_any_rpm --queryformat '%{release}\n')
-        new_release=${new_release%%\.oe1}
+        # 版本解析容错（rpm 损坏时 rpm -q 非零）：if 条件内命令不受 set -e 影响，
+        # Jenkins（有 -e）与 Action（无 -e）行为一致；失败仅告警、跳过归档，不阻断门禁
+        if ! old_version=$(rpm -q $old_dir/$old_any_rpm --queryformat '%{version}\n') \
+            || ! old_release=$(rpm -q $old_dir/$old_any_rpm --queryformat '%{release}\n') \
+            || ! new_version=$(rpm -q $new_dir/$new_any_rpm --queryformat '%{version}\n') \
+            || ! new_release=$(rpm -q $new_dir/$new_any_rpm --queryformat '%{release}\n'); then
+            echo "warn: parse rpm version/release failed, rpm file may be corrupted, skip osv.json archive upload"
+        else
+            old_release=${old_release%%\.oe1}
+            new_release=${new_release%%\.oe1}
 
-        new_json_name=${repo}_${old_version}-${old_release}_${new_version}-${new_release}.json
-        retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/report-$old_dir-$new_dir/osv.json root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}${variant_suffix}/${prid}/$new_json_name"
-        if [ -d $result_dir/details_analyse ]; then
-            retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/details_analyse root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}${variant_suffix}/${prid}/"
+            new_json_name=${repo}_${old_version}-${old_release}_${new_version}-${new_release}.json
+            retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/report-$old_dir-$new_dir/osv.json root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}${variant_suffix}/${prid}/$new_json_name"
+            if [ -d $result_dir/details_analyse ]; then
+                retry_command "scp -r -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $result_dir/details_analyse root@${repo_server}:/repo/openeuler/src-openeuler${repo_server_test_tail}/${tbranch}/${committer}/${repo}/${arch}${variant_suffix}/${prid}/"
+            fi
         fi
     fi
     if [[ -d $new_dir && "$(ls -A $new_dir | grep '.rpm')" ]]; then
