@@ -10,7 +10,6 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-import json
 from conf import config
 from . import Api
 
@@ -115,15 +114,19 @@ class Atomgit(Api):
         """
         Create a repository tag
         """
+        if isinstance(body, str):
+            body = [body]
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
-        return self._post(url, self._params(body=json.dumps(body)))
+        # atomgit 要求 token 放 query string、body 为 JSON 数组（对齐 openeuler-jenkins
+        # AtomgitProxy 的已验证用法），gitee 的 form 方式会返回 400
+        return self._post(f"{url}?access_token={self._token}", {}, json=body)
 
     def remove_tag(self, pr_number, label):
         """
         Remove repository tag
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels/{label}"
-        return self._delete(url, params=self._params())
+        return self._delete(f"{url}?access_token={self._token}")
 
     def get_all_tag(self, pr_number, body):
         """
@@ -132,5 +135,11 @@ class Atomgit(Api):
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
         return self._get(url, self._params(body=body))
     def get_issue(self, cve_issue, enterprises="open_euler"):
-        issue_url = f"https://api.atomgit.com/api/v5/enterprises/{enterprises}/issues/{cve_issue}"
+        """
+        数字编号为仓库级 issue（atomgit 新建 issue），字母编号为企业级（gitee 遗留编号）
+        """
+        if str(cve_issue).isdigit():
+            issue_url = f"https://api.atomgit.com/api/v5/repos/{self._owner}/{self._repo}/issues/{cve_issue}"
+        else:
+            issue_url = f"https://api.atomgit.com/api/v5/enterprises/{enterprises}/issues/{cve_issue}"
         return self._get(issue_url, params=self._params())

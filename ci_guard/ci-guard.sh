@@ -76,7 +76,6 @@ EOF
 function update_config() {
     echo "============ Start synchronizing jenkins environment variables ============"
     sed -i "/^atomgit_token: */catomgit_token: ${gitcodeToken}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^gitee_token: */cgitee_token: ${GiteeToken}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^requires_repo: */crequires_repo: ${buddy}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^warehouse_owner: */cwarehouse_owner: ${repo_owner}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^files_server: */cfiles_server: ${repo_server}" ${shell_path}/ci_guard/conf/config.yaml

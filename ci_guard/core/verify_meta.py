@@ -53,36 +53,41 @@ class VerifyHotPatchMeta:
         meta_info = []
         hotpatchs = []
         with open(meta_file, "r", encoding="utf-8", ) as f:
-            d = xmltodict.parse(f.read(), process_namespaces="ns0")
-            hotpatchdoc_url = "https://atomgit.com/openeuler/hotpatch_meta:hotpatchdoc"
-            hotpatch_result = d.get(hotpatchdoc_url, {}).get("HotPatchList", {}).get("Package", {}).get("hotpatch", [])
-            logger.info(hotpatch_result)
-            if hotpatch_result and isinstance(hotpatch_result, dict):
-                hotpatchs.append(hotpatch_result)
-            else:
-                hotpatchs = hotpatch_result
-            for hotpatch in hotpatchs:
-                if not hotpatch:
-                    break
-                try:
-                    tmp = dict()
-                    if self.mode == "SGL":
-                        tmp["name"] = hotpatch["@name"]
-                    tmp["version"] = hotpatch["@version"]
-                    tmp["release"] = hotpatch["@release"]
-                    tmp["type"] = hotpatch["@type"]
-                    tmp["inherit"] = hotpatch["@inherit"]
-                    tmp["status"] = hotpatch["@status"]
-                    tmp["SRC_RPM"] = hotpatch["SRC_RPM"]
-                    tmp["Debug_RPM_X86_64"] = hotpatch["Debug_RPM_X86_64"]
-                    tmp["Debug_RPM_Aarch64"] = hotpatch["Debug_RPM_Aarch64"]
-                    tmp["hotpatch_issue"] = hotpatch["hotpatch_issue_link"]
-                    tmp["patch"] = hotpatch["patch"]
-                    tmp["issue"] = hotpatch["issue"]
-                    meta_info.append(tmp)
-                except KeyError as error:
-                    logger.error(f"校验元数据字段错误，keyerror: {error}")
-                    return []
+            content = f.read()
+        # 存量元数据文件的 xmlns 形式与域名都不统一（gitee/atomgit 域名；ns0: 前缀声明或
+        # 默认 xmlns），两种形式都会使 xmltodict 的 key 带前缀导致取值失败；
+        # 去除 xmlns 属性声明与标签前缀后统一用裸 tag 解析
+        content = re.sub(r'\s+xmlns(:\w+)?="[^"]*"', '', content)
+        content = re.sub(r'<(/?)[A-Za-z_]\w*:', r'<\1', content)
+        d = xmltodict.parse(content)
+        hotpatch_result = d.get("hotpatchdoc", {}).get("HotPatchList", {}).get("Package", {}).get("hotpatch", [])
+        logger.info(hotpatch_result)
+        if hotpatch_result and isinstance(hotpatch_result, dict):
+            hotpatchs.append(hotpatch_result)
+        else:
+            hotpatchs = hotpatch_result
+        for hotpatch in hotpatchs:
+            if not hotpatch:
+                break
+            try:
+                tmp = dict()
+                if self.mode == "SGL":
+                    tmp["name"] = hotpatch["@name"]
+                tmp["version"] = hotpatch["@version"]
+                tmp["release"] = hotpatch["@release"]
+                tmp["type"] = hotpatch["@type"]
+                tmp["inherit"] = hotpatch["@inherit"]
+                tmp["status"] = hotpatch["@status"]
+                tmp["SRC_RPM"] = hotpatch["SRC_RPM"]
+                tmp["Debug_RPM_X86_64"] = hotpatch["Debug_RPM_X86_64"]
+                tmp["Debug_RPM_Aarch64"] = hotpatch["Debug_RPM_Aarch64"]
+                tmp["hotpatch_issue"] = hotpatch["hotpatch_issue_link"]
+                tmp["patch"] = hotpatch["patch"]
+                tmp["issue"] = hotpatch["issue"]
+                meta_info.append(tmp)
+            except KeyError as error:
+                logger.error(f"校验元数据字段错误，keyerror: {error}")
+                return []
 
         return meta_info
 
