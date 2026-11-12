@@ -29,7 +29,6 @@
 #   ACTION_COMMENT_ID:        PR 评论 ID（可选）
 #   ACTION_GITCODE_TOKEN:     AtomGit API token (atomgit.token)
 #   ACTION_BOT_TOKEN:         全局 bot token（可选，缺省回退 ACTION_GITCODE_TOKEN）
-#   ACTION_GITEE_TOKEN:       Gitee API token（可选）
 #   ACTION_MYSQL_HOST/PORT/USER_PASSWD: MySQL 连接
 #   ACTION_OAUTH_ACCOUNT/PASSWORD:      EBS OAuth 凭据
 #   ACTION_SSH_KEY_CONTENT:   文件服务器 SSH 私钥内容（优先，本脚本落盘+规范化）
@@ -61,7 +60,6 @@ export commentid=${ACTION_COMMENT_ID:-}
 # 代码平台 Token：默认组织级 bot token，secret 未配置时为空串，须用 :- 回退 atomgit.token
 # （Jenkins 流程无 ACTION_BOT_TOKEN，同此回退）
 export gitcodeToken=${ACTION_BOT_TOKEN:-${ACTION_GITCODE_TOKEN}}
-export GiteeToken=${ACTION_GITEE_TOKEN:-}
 
 # MySQL
 export MysqldbHost=${ACTION_MYSQL_HOST}

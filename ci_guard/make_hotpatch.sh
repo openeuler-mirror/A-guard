@@ -3,19 +3,19 @@ COMMAND=$1
 JENKINS_HOME=/home/jenkins
 SCRIPT_CMD=${shell_path}/ci_guard/ci.py
 METADATA_PATH=${WORKSPACE}/hotpatch_meta
-EBS_SERVER="https://eulermaker.compass-ci.openeuler.openatom.cn/"
+EBS_SERVER="https://eulermaker.openeuler.openatom.cn/"
 ARCH=(source x86_64 aarch64)
 
 
 function update_config(){
     echo "============ Start synchronizing jenkin environment variables ============"
-    sed -i "/^gitee_token: */cgitee_token: ${GiteeToken}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^atomgit_token: */catomgit_token: ${token}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^workspace: */cworkspace: ${WORKSPACE}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^branch: */cbranch: ${branch}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^pr: */cpr: ${giteePullRequestIid}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^repo: */crepo: ${giteeRepoName}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^pr: */cpr: ${gitcodePullRequestId}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^repo: */crepo: ${gitcodeRepoName}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^ebs_server: */cebs_server: ${EBS_SERVER}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^warehouse_owner: */cwarehouse_owner: ${giteeTargetNamespace}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^warehouse_owner: */cwarehouse_owner: ${gitcodeTargetNamespace}" ${shell_path}/ci_guard/conf/config.yaml
     echo "End of synchronous config"
 }
 
@@ -62,12 +62,12 @@ function check_branch_support(){
 
 function get_pr_commit(){
     echo "========== get pr commit =========="
-    git clone https://gitee.com/openeuler/hotpatch_meta ${METADATA_PATH}/
+    git clone https://atomgit.com/openeuler/hotpatch_meta ${METADATA_PATH}/
     cd ${METADATA_PATH}
 
-    if [[ ${giteePullRequestIid} ]]; then
-        git fetch origin pull/$giteePullRequestIid/head:pr_$giteePullRequestIid
-        git checkout pr_$giteePullRequestIid
+    if [[ ${gitcodePullRequestId} ]]; then
+        git fetch origin +refs/merge-requests/${gitcodePullRequestId}/head:pr_${gitcodePullRequestId}
+        git checkout pr_${gitcodePullRequestId}
     fi
 
     hotmetadata_path=`git diff --name-status HEAD~1 HEAD~0 | grep "hotmetadata_" | awk -F ' ' '{print $2}'`
@@ -211,7 +211,7 @@ function retry_command(){
 
 function download_hotpatch_rpm(){
     echo "========== download hotpatch from Eulermaker =========="
-    project="HotPatch:${giteePullRequestIid}"
+    project="HotPatch:${gitcodePullRequestId}"
     package="hotpatch_meta"
     result=`ccb select projects os_project=${project}`
     emsx=`echo ${result} | jq -r .[]._source.emsx`
@@ -254,9 +254,9 @@ function comment_issue(){
     echo "========== comment hotpatch link to hotpatch issue =========="
     echo "get hotpatch issue body"
     hotpatch_issue_link=`cat ${hotmetadata_xml} | grep hotpatch_issue_link | sed 's/^.*<hotpatch_issue_link>//g' | sed 's/<\/hotpatch_issue_link>.*$//g'|awk -F " " 'END {print}'`
-    issue_number=`echo ${hotpatch_issue_link}|awk -F '/' '{print $7}'`
+    issue_number=`echo ${hotpatch_issue_link}|awk -F '/' '{print $NF}'`
 
-    get_body=`curl -X GET --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/enterprises/open_euler/issues/'${issue_number}'?access_token='${token}`
+    get_body=`curl -X GET --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/enterprises/open_euler/issues/'${issue_number}'?access_token='${token}`
     body=`echo ${get_body} |jq -r '.body'`
     labels=`echo ${get_body} |jq -r '.labels[].name' | tr '[:space:]' ','`
     labels="$labels,hotpatch"
@@ -289,7 +289,7 @@ function comment_issue(){
 
     echo "comment hotpatch issue"
     body="${ques}\n${metadata}\n${hotpatch_str}\n${updateinfo_str}"
-    curl -X PATCH --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/enterprises/open_euler/issues/'${issue_number} -d '{"access_token":"'"${token}"'","repo":"'"${repo}"'","body":"'"${body}"'","labels":"'"${labels}"'"}'
+    curl -X PATCH --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/enterprises/open_euler/issues/'${issue_number} -d '{"access_token":"'"${token}"'","repo":"'"${repo}"'","body":"'"${body}"'","labels":"'"${labels}"'"}'
 
 }
 
@@ -298,19 +298,20 @@ function comment_job_info(){
     job_name=`echo $JOB_NAME|sed -e 's#/#/job/#g'`
     job_path="https://ci.openeuler.openatom.cn/job/${job_name}/$BUILD_ID/console"
     body_str="热补丁构建入口：<a href=${job_path}>multiarch/src-openeuler/syscare-patch/hotpatch_meta_ebs</a>，当前构建号为 $BUILD_ID"
-    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/repos/'${giteeTargetNamespace}'/'${giteeRepoName}'/pulls/'${giteePullRequestIid}'/comments' -d '{"access_token":"'"${token}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
+    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/'${gitcodeTargetNamespace}'/'${gitcodeRepoName}'/pulls/'${gitcodePullRequestId}'/comments' -d '{"access_token":"'"${token}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
 }
 
 function check_version_released(){
     echo "========== check version is released =========="
-    release_path=/repo/openeuler/${comment_branch}
     hotpatch_update_src_path=hotpatch_update/source/Packages
+    release_url="https://dl-cdn.openeuler.openatom.cn/${branch}/${hotpatch_update_src_path}/"
+    # 从发布层目录索引页查询（替代 ssh 到发布机器 ls），判断热补丁版本发布状态
+    released_list=`curl -s --max-time 60 "${release_url}" | grep -o 'href="[^"]*"' | sed 's/href="//;s/"//' | grep '\.src\.rpm$'` || echo ""
     # 判断最近一次版本是否已被发布
     pre_version_release=`cat ${update_info_file} | grep pre_version_release: | sed 's/^.*pre_version_release://g'`
     if [[ $pre_version_release ]]; then
-        src_hotpatch_update_name=`ssh -i ${update_key} -o StrictHostKeyChecking=no -o LogLevel=ERROR root@${release_ip} "cd ${release_path}/${hotpatch_update_src_path} && ls | grep ${repo}-${repo_version} | grep ${pre_version_release}"`|| echo ""
+        src_hotpatch_update_name=`echo "${released_list}" | grep "^${repo}-${repo_version}" | grep "${pre_version_release}" | tail -n 1` || echo ""
         if [[ ! $src_hotpatch_update_name ]]; then
-           src_url="https://repo.openeuler.org/${comment_branch}/${hotpatch_update_src_path}/${src_hotpatch_update_name}"
            comment_error_src_pr "上一个热补丁版本：${pre_version_release}未发布，不允许新增热补丁版本"
         fi
     fi
@@ -319,9 +320,9 @@ function check_version_released(){
     if [[ $modify_list ]]; then
         for ver in ${modify_list[@]}
         do
-            src_hotpatch_update_name=`ssh -i ${update_key} -o StrictHostKeyChecking=no -o LogLevel=ERROR root@${release_ip} "cd ${release_path}/${hotpatch_update_src_path} && ls | grep ${repo}-${repo_version} | grep ${ver}"`|| echo ""
+            src_hotpatch_update_name=`echo "${released_list}" | grep "^${repo}-${repo_version}" | grep "${ver}" | tail -n 1` || echo ""
             if [[ $src_hotpatch_update_name ]]; then
-               src_url="https://repo.openeuler.org/${comment_branch}/${hotpatch_update_src_path}/${src_hotpatch_update_name}"
+               src_url="${release_url}${src_hotpatch_update_name}"
                comment_error_src_pr "热补丁版本：${ver}已发布，不允许修改。发布路径为：$src_url"
             fi
         done
@@ -331,11 +332,11 @@ function check_version_released(){
 function comment_error_src_pr(){
     echo "========== comment hotmetadata pr link to pr =========="
     body_str="热补丁制作流程已中止，$1 "
-    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/repos/'${giteeTargetNamespace}'/'${giteeRepoName}'/pulls/'${giteePullRequestIid}'/comments' -d '{"access_token":"'"${token}"'","body":"'"${body_str}"'"}' || echo "comment pr failed"
+    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/'${gitcodeTargetNamespace}'/'${gitcodeRepoName}'/pulls/'${gitcodePullRequestId}'/comments' -d '{"access_token":"'"${token}"'","body":"'"${body_str}"'"}' || echo "comment pr failed"
     echo "create tag"
-    curl -X DELETE --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/repos/'${giteeTargetNamespace}'/'${giteeRepoName}'/pulls/'${giteePullRequestIid}'/labels/ci_successful?access_token='${token}''
-    curl -X DELETE --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/repos/'${giteeTargetNamespace}'/'${giteeRepoName}'/pulls/'${giteePullRequestIid}'/labels/ci_processing?access_token='${token}''
-    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://gitee.com/api/v5/repos/'${giteeTargetNamespace}'/'${giteeRepoName}'/pulls/'${giteePullRequestIid}'/labels?access_token='${token}'' -d '"[\"ci_failed\"]"'
+    curl -X DELETE --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/'${gitcodeTargetNamespace}'/'${gitcodeRepoName}'/pulls/'${gitcodePullRequestId}'/labels/ci_successful?access_token='${token}''
+    curl -X DELETE --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/'${gitcodeTargetNamespace}'/'${gitcodeRepoName}'/pulls/'${gitcodePullRequestId}'/labels/ci_processing?access_token='${token}''
+    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/'${gitcodeTargetNamespace}'/'${gitcodeRepoName}'/pulls/'${gitcodePullRequestId}'/labels?access_token='${token}'' -d '"[\"ci_failed\"]"'
     echo $1
     exit
 }
@@ -381,7 +382,7 @@ function make_patch(){
 }
 
 function approve_hotpatch(){
-    hotpatch_path=${WORKSPACE}/hotpatch_pr_${giteePullRequestIid}
+    hotpatch_path=${WORKSPACE}/hotpatch_pr_${gitcodePullRequestId}
     sudo yum install -y jq
     # 清理环境
     clean_env
@@ -399,8 +400,8 @@ function approve_hotpatch(){
     echo "delete remote branch"
     set +e
     # 删除临时分支
-    branch_name=${giteeSourceBranch}
-    if [[ $giteeSourceNamespace == "openeuler" ]]; then
+    branch_name=${gitcodeSourceBranch}
+    if [[ $gitcodeSourceNamespace == "openeuler" ]]; then
         if [[ $(git branch -a | grep ${branch_name}) ]]; then
             git push origin --delete ${branch_name}
         fi
