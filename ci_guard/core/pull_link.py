@@ -302,7 +302,9 @@ class Pull:
                 number = pr_link_info["source_pr"]
                 repo = pr_link_info["source_repo"]
                 link = "be_link_pr"
-            pr_info = Atomgit(repo=repo).get_single_pr_info(number=number)
+            pr_info = Atomgit(
+                repo=repo, owner=config.warehouse_owner or "src-openeuler"
+            ).get_single_pr_info(number=number)
             relations[link].append(
                 {
                     "status": pr_info.get("state") if pr_info else "unknow",

@@ -239,7 +239,7 @@ EOF
     echo "save result"
 
     python3 ${shell_pathoe}/src/utils/oemaker_analyse.py --branch ${tbranch} --arch ${arch} \
-	--oecp_json_path "$result_dir/report-$old_dir-$new_dir/osv.json" --owner "src-openeuler" \
+	--oecp_json_path "$result_dir/report-$old_dir-$new_dir/osv.json" --owner "${repo_owner}" \
 	--repo ${repo} --atomgit_token $gitcodeToken --prid ${prid}
 }
 
@@ -409,7 +409,7 @@ function print_job() {
     job_name=`echo $JOB_NAME|sed -e 's#/job/#/#g'`
     job_path="https://log-ci.openeuler.openatom.cn/job/${job_name}/$BUILD_ID/"
     body_str="${arch_display}架构构建及构建后检查：<a href=${job_path}>${job_name}/${BUILD_ID}</a>"
-    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/src-openeuler/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${gitcodeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
+    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/'${repo_owner}'/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${gitcodeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
 }
 
 # 从文件服务器拉取 trigger 阶段上传的 per-spec support_arch 与 spec_list。
