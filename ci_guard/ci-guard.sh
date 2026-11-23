@@ -10,7 +10,6 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # ******************************************************************************/
-set -x
 JENKINS_HOME=/home/jenkins
 SCRIPT_CMD=${shell_path}/ci_guard/ci.py
 
@@ -74,33 +73,118 @@ EOF
 }
 
 function update_config() {
+    { set +x; } 2>/dev/null
     echo "============ Start synchronizing jenkins environment variables ============"
-    sed -i "/^atomgit_token: */catomgit_token: ${gitcodeToken}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^requires_repo: */crequires_repo: ${buddy}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^warehouse_owner: */cwarehouse_owner: ${repo_owner}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^files_server: */cfiles_server: ${repo_server}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^workspace: */cworkspace: ${WORKSPACE}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^arch: */carch: ${arch}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^pr: */cpr: ${prid}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^repo: */crepo: ${repo}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^committer: */ccommitter: ${committer}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^db_host: */cdb_host: ${MysqldbHost}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^port: */cport: ${MysqldbPort}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^user_passwd: */cuser_passwd: ${MysqlUserPasswd}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^commentid: */ccommentid: ${commentid}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^branch: */cbranch: ${tbranch}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^ebs_server: */cebs_server: ${ebs_server}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^platform: */cplatform: ${platform}" ${shell_path}/ci_guard/conf/config.yaml
-    sed -i "/^variant: */cvariant: ${variant}" ${shell_path}/ci_guard/conf/config.yaml
+    local config_file="${shell_path}/ci_guard/conf/config.yaml"
+    # 敏感值通过环境变量进入子进程，不出现在 sed/awk 等命令的 argv 中；
+    # 按行替换目标 key，保留注释、空行、缩进与 variant_macros 等嵌套结构
+    export gitcodeToken MysqlUserPasswd buddy repo_owner repo_server WORKSPACE arch \
+        prid repo committer MysqldbHost MysqldbPort commentid tbranch ebs_server platform variant
+    python3 - "${config_file}" <<'PY'
+import os
+import sys
+
+path = sys.argv[1]
+values = {
+    "atomgit_token": os.environ.get("gitcodeToken", ""),
+    "atomgit_write_token": os.environ.get("gitcodeToken", ""),
+    "requires_repo": os.environ.get("buddy", ""),
+    "warehouse_owner": os.environ.get("repo_owner", ""),
+    "files_server": os.environ.get("repo_server", ""),
+    "workspace": os.environ.get("WORKSPACE", ""),
+    "arch": os.environ.get("arch", ""),
+    "pr": os.environ.get("prid", ""),
+    "repo": os.environ.get("repo", ""),
+    "committer": os.environ.get("committer", ""),
+    "db_host": os.environ.get("MysqldbHost", ""),
+    "port": os.environ.get("MysqldbPort", ""),
+    "user_passwd": os.environ.get("MysqlUserPasswd", ""),
+    "commentid": os.environ.get("commentid", ""),
+    "branch": os.environ.get("tbranch", ""),
+    "ebs_server": os.environ.get("ebs_server", ""),
+    "platform": os.environ.get("platform", ""),
+    "variant": os.environ.get("variant", ""),
+}
+
+lines = []
+with open(path, encoding="utf-8") as config_file:
+    for line in config_file:
+        key = None
+        if not line.startswith((" ", "\t")) and ":" in line:
+            key = line.split(":", 1)[0]
+        if key in values:
+            lines.append("{}: {}\n".format(key, values[key]))
+        else:
+            lines.append(line)
+
+with open(path, "w", encoding="utf-8") as config_file:
+    config_file.writelines(lines)
+PY
+    chmod 600 "${config_file}"
     echo "End of synchronous config"
+    if [ "${CI_DEBUG:-false}" == "true" ]; then
+        set -x
+    fi
+}
+
+function clean_secrets() {
+    { set +x; } 2>/dev/null
+    local config_file="${shell_path}/ci_guard/conf/config.yaml"
+    if [ -f "${config_file}" ]; then
+        python3 - "${config_file}" <<'PY'
+import sys
+
+path = sys.argv[1]
+secret_keys = {"atomgit_token", "atomgit_write_token", "user_passwd"}
+lines = []
+with open(path, encoding="utf-8") as config_file:
+    for line in config_file:
+        key = None
+        if not line.startswith((" ", "\t")) and ":" in line:
+            key = line.split(":", 1)[0]
+        if key in secret_keys:
+            lines.append("{}:\n".format(key))
+        else:
+            lines.append(line)
+with open(path, "w", encoding="utf-8") as config_file:
+    config_file.writelines(lines)
+PY
+        chmod 600 "${config_file}"
+    fi
+    # EBS 配置含 OAuth 凭据，用后删除
+    if [ -f "$HOME/.config/cli/defaults/config.yaml" ]; then
+        shred -u "$HOME/.config/cli/defaults/config.yaml" 2>/dev/null \
+            || rm -f "$HOME/.config/cli/defaults/config.yaml"
+    fi
+    # Action 链路落盘的 SSH 私钥：main() 的 EXIT trap 会覆盖 build_entry.sh 的同名 trap，
+    # 在此兜底删除（Jenkins 链路不存在该文件）
+    if [ -n "${ACTION_WORKSPACE:-}" ] && [ -f "${ACTION_WORKSPACE}/.ci_ssh_key" ]; then
+        shred -u "${ACTION_WORKSPACE}/.ci_ssh_key" 2>/dev/null \
+            || rm -f "${ACTION_WORKSPACE}/.ci_ssh_key"
+    fi
 }
 
 function scp_remote_service() {
     echo "Start copy the check result file to the remote file server"
-    chmod 755 $WORKSPACE/records-course/${repo_comment}
-    cat $WORKSPACE/records-course/${repo_comment}
-    echo $fileserver_tmpfile_path
-    retry_command "scp -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR $WORKSPACE/records-course/${repo_comment} root@${repo_server}:$fileserver_tmpfile_path"
+    local comment_file_path="$WORKSPACE/records-course/${repo_comment}"
+    local masked_file="${comment_file_path}.masked"
+    chmod 755 "${comment_file_path}"
+    # comment 文件是 JSON：按 JSON 模式脱敏，只替换敏感 key 的 value，保持 key/引号/结构合法
+    if ! mask_sensitive --json < "${comment_file_path}" > "${masked_file}"; then
+        echo "ERROR: mask_sensitive failed for ${comment_file_path}, abort upload"
+        rm -f "${masked_file}"
+        return 1
+    fi
+    if ! python3 -m json.tool "${masked_file}" >/dev/null 2>&1; then
+        echo "ERROR: masked comment file is not valid JSON, abort upload"
+        rm -f "${masked_file}"
+        return 1
+    fi
+    mv "${masked_file}" "${comment_file_path}"
+    chmod 755 "${comment_file_path}"
+    cat "${comment_file_path}"
+    echo "${fileserver_tmpfile_path}"
+    retry_command "scp -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${comment_file_path} root@${repo_server}:$fileserver_tmpfile_path"
 }
 
 function check_single_install() {
@@ -165,11 +249,12 @@ function compare_difference() {
 }
 
 function abi_compare() {
+    { set +x; } 2>/dev/null
     pr_link='https://atomgit.com/'${repo_owner}/${repo}'/pull/'${prid}
     pr_commit_json_file="${WORKSPACE}/pr_commit_json_file"
     # comment_file="${repo}_${prid}_${arch}_comment"
     if [[ ${platform} != "github" ]]; then
-        curl https://api.atomgit.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files?access_token=$gitcodeToken >$pr_commit_json_file
+        curl -H "Authorization: Bearer ${gitcodeToken}" https://api.atomgit.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files >$pr_commit_json_file
     fi
     compare_result="${repo}_${prid}_${arch}${variant_suffix}_compare_result"
     export PYTHONPATH=${shell_pathoe}
@@ -241,6 +326,9 @@ EOF
     python3 ${shell_pathoe}/src/utils/oemaker_analyse.py --branch ${tbranch} --arch ${arch} \
 	--oecp_json_path "$result_dir/report-$old_dir-$new_dir/osv.json" --owner "${repo_owner}" \
 	--repo ${repo} --atomgit_token $gitcodeToken --prid ${prid}
+    if [ "${CI_DEBUG:-false}" == "true" ]; then
+        set -x
+    fi
 }
 
 function check_single_build() {
@@ -287,6 +375,7 @@ EOF
 }
 
 function oecp_compare() {
+    { set +x; } 2>/dev/null
     echo "========== Start oecp compare =========="
     old_dir="${WORKSPACE}/old_rpms/"
     new_dir="${WORKSPACE}/new_rpms/"
@@ -330,25 +419,46 @@ function oecp_compare() {
         cat $result_dir/report-$old_dir-$new_dir/osv.json
     fi
     echo "End oecp compare"
+    if [ "${CI_DEBUG:-false}" == "true" ]; then
+        set -x
+    fi
 }
 
 function config_ebs() {
+    # OAuth 账号/密码通过环境变量进入子进程，不出现在 sed 等命令的 argv 中
+    { set +x; } 2>/dev/null
     echo "Start config ebs env"
     if [ ! -d ~/.config/cli/defaults ]; then
         mkdir -p ~/.config/cli/defaults
     fi
-    cp ${shell_path}/ci_guard/conf/ebs_config.yaml ~/.config/cli/defaults/config.yaml
-    # sed 展开含 OAuth 账号/密码，set -x 下命令本身会被 trace 回显到 CI 日志，
-    # 局部静默该段（结束后恢复 set -x），避免凭据泄露
-    set +x
-    sed -i "s/__OAUTH_ACCOUNT__/${OauthAccount}/g" ~/.config/cli/defaults/config.yaml
-    sed -i "s/__OAUTH_PASSWORD__/${OauthPassword}/g" ~/.config/cli/defaults/config.yaml
-    set -x
+    local ebs_config="$HOME/.config/cli/defaults/config.yaml"
+    cp ${shell_path}/ci_guard/conf/ebs_config.yaml "${ebs_config}"
+    export OauthAccount OauthPassword
+    python3 - "${ebs_config}" <<'PY'
+import os
+import sys
+
+path = sys.argv[1]
+replacements = {
+    "__OAUTH_ACCOUNT__": os.environ.get("OauthAccount", ""),
+    "__OAUTH_PASSWORD__": os.environ.get("OauthPassword", ""),
+}
+with open(path, encoding="utf-8") as config_file:
+    content = config_file.read()
+for placeholder, value in replacements.items():
+    content = content.replace(placeholder, value)
+with open(path, "w", encoding="utf-8") as config_file:
+    config_file.write(content)
+PY
+    chmod 600 "${ebs_config}"
     source /etc/profile
     source $HOME/.${SHELL##*/}rc
     echo "The ebs configuration is complete."
     # 仅回显配置生效的行数校验（不 cat 全文，防 OAuth 凭据进 CI 日志）
-    echo "ebs config entries: $(grep -c '.' ~/.config/cli/defaults/config.yaml)"
+    echo "ebs config entries: $(grep -c '.' ${ebs_config})"
+    if [ "${CI_DEBUG:-false}" == "true" ]; then
+        set -x
+    fi
 }
 
 function update_ccb() {
@@ -394,11 +504,15 @@ function retry_command() {
 }
 
 function print_job() {
+    { set +x; } 2>/dev/null
     # Action 链路（workflow 注入 ACTION_PIPELINE_URL/ACTION_RUN_NUMBER）跳过：
     # 其日志为 workflow run 链接，且由 build-comment 汇总评论统一回显，
     # 此处逐架构发评论只会产生重复内容并拼出 Jenkins 假链接
     if [[ -n "${ACTION_PIPELINE_URL:-}${ACTION_RUN_NUMBER:-}" ]]; then
         echo "Action 环境，跳过 print_job（日志链接由 build-comment 汇总评论提供）"
+        if [ "${CI_DEBUG:-false}" == "true" ]; then
+            set -x
+        fi
         return 0
     fi
     if [[ -n "$variant" ]]; then
@@ -410,6 +524,9 @@ function print_job() {
     job_path="https://log-ci.openeuler.openatom.cn/job/${job_name}/$BUILD_ID/"
     body_str="${arch_display}架构构建及构建后检查：<a href=${job_path}>${job_name}/${BUILD_ID}</a>"
     curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/'${repo_owner}'/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${gitcodeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
+    if [ "${CI_DEBUG:-false}" == "true" ]; then
+        set -x
+    fi
 }
 
 # 从文件服务器拉取 trigger 阶段上传的 per-spec support_arch 与 spec_list。
@@ -440,6 +557,7 @@ function fetch_support_arch_from_server() {
 }
 
 function main() {
+    trap clean_secrets EXIT
     # spec_list/support_arch 来源分两条链路：
     # - Jenkins：无平台制品，从文件服务器拉取 trigger 阶段上传的文件
     # - Action：AC 制品已由 build_entry.sh 的 _restore_ac_spec_files 还原到本目录

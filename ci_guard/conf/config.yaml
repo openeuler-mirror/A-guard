@@ -1,6 +1,7 @@
 # The token for the code cloud repository, choose one
 gitee_token:
 atomgit_token:
+atomgit_write_token:
 
 # repo depend
 requires_repo:

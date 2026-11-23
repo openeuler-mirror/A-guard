@@ -33,26 +33,25 @@ class Gitee(Api):
         if not self._token:
             raise ValueError("Gitee private token cannot be empty.")
 
+    def _auth_headers(self):
+        return {"Authorization": f"Bearer {self._token}"}
+
     def _params(self, **kwargs):
-        if not kwargs:
-            return dict(access_token=self._token)
-        parameters = kwargs
-        parameters.setdefault("access_token", self._token)
-        return parameters
+        return kwargs
 
     def create_pr_comment(self, number, body):
         """
         Post comment to the given specific PR
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{number}/comments"
-        return self._post(url, self._params(body=body))
+        return self._post(url, self._params(body=body), headers=self._auth_headers())
 
     def modify_pr_comment(self, number, body):
         """
         Post comment to the given specific PR
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/comments/{number}"
-        return self._patch(url, self._params(body=body))
+        return self._patch(url, self._params(body=body), headers=self._auth_headers())
 
     def get_single_pr_info(self, number):
         """
@@ -60,7 +59,7 @@ class Gitee(Api):
         :param number: Pr number
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{number}"
-        return self._get(url, params=self._params())
+        return self._get(url, params=self._params(), headers=self._auth_headers())
 
     def package_committer(self, package_names, community="openeuler", search="fuzzy"):
         """
@@ -106,21 +105,21 @@ class Gitee(Api):
         Create a repository tag
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
-        return self._post(url, self._params(body=json.dumps(body)))
+        return self._post(url, self._params(body=json.dumps(body)), headers=self._auth_headers())
 
     def remove_tag(self, pr_number, label):
         """
         Remove repository tag
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels/{label}"
-        return self._delete(url, params=self._params())
+        return self._delete(url, params=self._params(), headers=self._auth_headers())
 
     def get_all_tag(self, pr_number, body):
         """
         Get pull all tags
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
-        return self._get(url, self._params(body=body))
+        return self._get(url, self._params(body=body), headers=self._auth_headers())
     def get_issue(self, cve_issue, enterprises="open_euler"):
         issue_url = f"https://gitee.com/api/v5/enterprises/{enterprises}/issues/{cve_issue}"
-        return self._get(issue_url, params=self._params())
+        return self._get(issue_url, params=self._params(), headers=self._auth_headers())
