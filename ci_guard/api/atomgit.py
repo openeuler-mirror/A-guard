@@ -22,36 +22,55 @@ class Atomgit(Api):
     host = "https://api.atomgit.com/api/v5/repos"
     pkg_info_url = "https://www.openeuler.org/api-omapi/query/sig/info"
 
-    def __init__(self, repo, owner="src-openeuler", token=None):
+    def __init__(self, repo, owner="src-openeuler", token=None, *, read_token=None, write_token=None):
         super(Atomgit, self).__init__()
         self._owner = owner
         self._repo = repo
         if not all([self._owner, self._repo]):
             raise ValueError("Calling the api must pass the owner repo parameters.")
-        self._token = token or config.atomgit_token
-        if not self._token:
-            raise ValueError("Atomgit private token cannot be empty.")
+        # 灰度兼容：仅传旧 token 时读写双通；任一拆分 token 已传则忽略旧 token
+        if token and not (read_token or write_token):
+            read_token = write_token = token
+        self._read_token = read_token or config.atomgit_token
+        self._write_token = write_token or config.atomgit_write_token
+
+    def _require(self, kind):
+        """
+        取指定类型的 token，缺失时 fail-fast
+
+        :param kind: read / write
+        :return: token 字符串
+        """
+        token = self._read_token if kind == "read" else self._write_token
+        if not token:
+            raise RuntimeError(f"{kind} token not provided")
+        return token
+
+    def _headers(self, kind):
+        """
+        构造 Bearer 鉴权头
+
+        :param kind: read / write
+        :return: header dict
+        """
+        return {"Authorization": f"Bearer {self._require(kind)}"}
 
     def _params(self, **kwargs):
-        if not kwargs:
-            return dict(access_token=self._token)
-        parameters = kwargs
-        parameters.setdefault("access_token", self._token)
-        return parameters
+        return kwargs
 
     def create_pr_comment(self, number, body):
         """
         Post comment to the given specific PR
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{number}/comments"
-        return self._post(url, self._params(body=body))
+        return self._post(url, self._params(body=body), headers=self._headers("write"))
 
     def modify_pr_comment(self, number, body):
         """
         Post comment to the given specific PR
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/comments/{number}"
-        return self._patch(url, self._params(body=body))
+        return self._patch(url, self._params(body=body), headers=self._headers("write"))
 
     def get_single_pr_info(self, number):
         """
@@ -59,7 +78,7 @@ class Atomgit(Api):
         :param number: Pr number
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{number}"
-        return self._get(url, params=self._params())
+        return self._get(url, params=self._params(), headers=self._headers("read"))
 
     def get_pr_files(self, number):
         """
@@ -69,7 +88,7 @@ class Atomgit(Api):
             [{"filename": "kernel.spec", "status": "modified"}, ...]
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{number}/files"
-        return self._get(url, params=self._params())
+        return self._get(url, params=self._params(), headers=self._headers("read"))
 
     def package_committer(self, package_names, community="openeuler", search="fuzzy"):
         """
@@ -117,23 +136,22 @@ class Atomgit(Api):
         if isinstance(body, str):
             body = [body]
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
-        # atomgit 要求 token 放 query string、body 为 JSON 数组（对齐 openeuler-jenkins
-        # AtomgitProxy 的已验证用法），gitee 的 form 方式会返回 400
-        return self._post(f"{url}?access_token={self._token}", {}, json=body)
+        # atomgit labels 接口要求 body 为 JSON 数组（gitee 的 form 方式会返回 400）
+        return self._post(url, {}, json=body, headers=self._headers("write"))
 
     def remove_tag(self, pr_number, label):
         """
         Remove repository tag
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels/{label}"
-        return self._delete(f"{url}?access_token={self._token}")
+        return self._delete(url, headers=self._headers("write"))
 
     def get_all_tag(self, pr_number, body):
         """
         Get pull all tags
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
-        return self._get(url, self._params(body=body))
+        return self._get(url, self._params(body=body), headers=self._headers("read"))
     def get_issue(self, cve_issue, enterprises="open_euler"):
         """
         数字编号为仓库级 issue（atomgit 新建 issue），字母编号为企业级（gitee 遗留编号）
@@ -142,4 +160,4 @@ class Atomgit(Api):
             issue_url = f"https://api.atomgit.com/api/v5/repos/{self._owner}/{self._repo}/issues/{cve_issue}"
         else:
             issue_url = f"https://api.atomgit.com/api/v5/enterprises/{enterprises}/issues/{cve_issue}"
-        return self._get(issue_url, params=self._params())
+        return self._get(issue_url, params=self._params(), headers=self._headers("read"))

@@ -27,8 +27,9 @@
 #   ACTION_PLATFORM:          代码平台 (atomgit)
 #   ACTION_OWNER:             PR 目标仓实际 owner（ACTION_COMMUNITY 为改名前旧名，过渡兼容）
 #   ACTION_COMMENT_ID:        PR 评论 ID（可选）
-#   ACTION_GITCODE_TOKEN:     AtomGit API token (atomgit.token)
-#   ACTION_BOT_TOKEN:         全局 bot token（可选，缺省回退 ACTION_GITCODE_TOKEN）
+#   ACTION_SELF_TOKEN:        Action 平台 token (atomgit.token)，新 token 缺失时回退
+#   ACTION_GITCODE_TOKEN_READ:  AtomGit 读 token（缺失回退 ACTION_SELF_TOKEN）
+#   ACTION_GITCODE_TOKEN_WRITE: AtomGit 写 token（缺失回退 ACTION_SELF_TOKEN）
 #   ACTION_MYSQL_HOST/PORT/USER_PASSWD: MySQL 连接
 #   ACTION_OAUTH_ACCOUNT/PASSWORD:      EBS OAuth 凭据
 #   ACTION_SSH_KEY_CONTENT:   文件服务器 SSH 私钥内容（优先，本脚本落盘+规范化）
@@ -57,9 +58,12 @@ export platform=${ACTION_PLATFORM:-atomgit}
 export repo_owner=${ACTION_OWNER:-${ACTION_COMMUNITY:-src-openeuler}}
 export commentid=${ACTION_COMMENT_ID:-}
 
-# 代码平台 Token：默认组织级 bot token，secret 未配置时为空串，须用 :- 回退 atomgit.token
-# （Jenkins 流程无 ACTION_BOT_TOKEN，同此回退）
-export gitcodeToken=${ACTION_BOT_TOKEN:-${ACTION_GITCODE_TOKEN}}
+# 代码平台 Token：READ / WRITE 拆分，secret 未配置时回退平台 token
+_legacy="${ACTION_SELF_TOKEN:-}"
+export gitcodeTokenRead="${ACTION_GITCODE_TOKEN_READ:-${_legacy}}"
+export gitcodeTokenWrite="${ACTION_GITCODE_TOKEN_WRITE:-${_legacy}}"
+export GITCODE_TOKEN_READ="${gitcodeTokenRead}"
+export GITCODE_TOKEN_WRITE="${gitcodeTokenWrite}"
 
 # MySQL
 export MysqldbHost=${ACTION_MYSQL_HOST}
