@@ -10,6 +10,7 @@ ARCH=(source x86_64 aarch64)
 function update_config(){
     echo "============ Start synchronizing jenkin environment variables ============"
     sed -i "/^atomgit_token: */catomgit_token: ${token}" ${shell_path}/ci_guard/conf/config.yaml
+    sed -i "/^atomgit_write_token: */catomgit_write_token: ${token}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^workspace: */cworkspace: ${WORKSPACE}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^branch: */cbranch: ${branch}" ${shell_path}/ci_guard/conf/config.yaml
     sed -i "/^pr: */cpr: ${gitcodePullRequestId}" ${shell_path}/ci_guard/conf/config.yaml

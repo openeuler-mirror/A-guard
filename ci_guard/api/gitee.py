@@ -23,18 +23,39 @@ class Gitee(Api):
     host = "https://gitee.com/api/v5/repos"
     pkg_info_url = "https://www.openeuler.org/api-omapi/query/sig/info"
 
-    def __init__(self, repo, owner="src-openeuler", token=None):
+    def __init__(self, repo, owner="src-openeuler", token=None, *, read_token=None, write_token=None):
         super(Gitee, self).__init__()
         self._owner = owner
         self._repo = repo
         if not all([self._owner, self._repo]):
             raise ValueError("Calling the api must pass the owner repo parameters.")
-        self._token = token or config.gitee_token
-        if not self._token:
-            raise ValueError("Gitee private token cannot be empty.")
+        # 灰度兼容：仅传旧 token 时读写双通；任一拆分 token 已传则忽略旧 token
+        if token and not (read_token or write_token):
+            read_token = write_token = token
+        # gitee 无独立写 token 配置，读写均回退 gitee_token
+        self._read_token = read_token or config.gitee_token
+        self._write_token = write_token or config.gitee_token
 
-    def _auth_headers(self):
-        return {"Authorization": f"Bearer {self._token}"}
+    def _require(self, kind):
+        """
+        取指定类型的 token，缺失时 fail-fast
+
+        :param kind: read / write
+        :return: token 字符串
+        """
+        token = self._read_token if kind == "read" else self._write_token
+        if not token:
+            raise RuntimeError(f"{kind} token not provided")
+        return token
+
+    def _headers(self, kind):
+        """
+        构造 Bearer 鉴权头
+
+        :param kind: read / write
+        :return: header dict
+        """
+        return {"Authorization": f"Bearer {self._require(kind)}"}
 
     def _params(self, **kwargs):
         return kwargs
@@ -44,14 +65,14 @@ class Gitee(Api):
         Post comment to the given specific PR
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{number}/comments"
-        return self._post(url, self._params(body=body), headers=self._auth_headers())
+        return self._post(url, self._params(body=body), headers=self._headers("write"))
 
     def modify_pr_comment(self, number, body):
         """
         Post comment to the given specific PR
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/comments/{number}"
-        return self._patch(url, self._params(body=body), headers=self._auth_headers())
+        return self._patch(url, self._params(body=body), headers=self._headers("write"))
 
     def get_single_pr_info(self, number):
         """
@@ -59,7 +80,7 @@ class Gitee(Api):
         :param number: Pr number
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{number}"
-        return self._get(url, params=self._params(), headers=self._auth_headers())
+        return self._get(url, params=self._params(), headers=self._headers("read"))
 
     def package_committer(self, package_names, community="openeuler", search="fuzzy"):
         """
@@ -105,21 +126,21 @@ class Gitee(Api):
         Create a repository tag
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
-        return self._post(url, self._params(body=json.dumps(body)), headers=self._auth_headers())
+        return self._post(url, self._params(body=json.dumps(body)), headers=self._headers("write"))
 
     def remove_tag(self, pr_number, label):
         """
         Remove repository tag
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels/{label}"
-        return self._delete(url, params=self._params(), headers=self._auth_headers())
+        return self._delete(url, params=self._params(), headers=self._headers("write"))
 
     def get_all_tag(self, pr_number, body):
         """
         Get pull all tags
         """
         url = f"{self.host}/{self._owner}/{self._repo}/pulls/{pr_number}/labels"
-        return self._get(url, self._params(body=body), headers=self._auth_headers())
+        return self._get(url, self._params(body=body), headers=self._headers("read"))
     def get_issue(self, cve_issue, enterprises="open_euler"):
         issue_url = f"https://gitee.com/api/v5/enterprises/{enterprises}/issues/{cve_issue}"
-        return self._get(issue_url, params=self._params(), headers=self._auth_headers())
+        return self._get(issue_url, params=self._params(), headers=self._headers("read"))

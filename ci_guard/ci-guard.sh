@@ -27,6 +27,27 @@ SCRIPT_PATCH=${shell_pathoe}/src/build
 # 公共 shell 函数库（config_oecp_db 等，来自 openeuler-jenkins 仓库部署目录）
 . ${shell_pathoe}/src/lib/lib.sh
 
+# 代码平台读写 token：Jenkins 由 job 绑定 gitcodeTokenRead / gitcodeTokenWrite；
+# Action 由 build_entry.sh 从 ACTION_* 映射后导出 GITCODE_TOKEN_READ / WRITE。
+# 旧 job 兼容（ADR-028）：新变量逐项优先，缺失时回退旧 gitcodeToken 并告警。
+_legacy_code_token="${gitcodeToken:-}"
+if [[ -n "${_legacy_code_token}" ]] && { [[ -z "${GITCODE_TOKEN_READ:-}${gitcodeTokenRead:-}" ]] || [[ -z "${GITCODE_TOKEN_WRITE:-}${gitcodeTokenWrite:-}" ]]; }; then
+    echo "[WARN] gitcodeTokenRead/gitcodeTokenWrite 未配置，回退旧 gitcodeToken" >&2
+fi
+export GITCODE_TOKEN_READ="${GITCODE_TOKEN_READ:-${gitcodeTokenRead:-${_legacy_code_token}}}"
+export GITCODE_TOKEN_WRITE="${GITCODE_TOKEN_WRITE:-${gitcodeTokenWrite:-${_legacy_code_token}}}"
+export gitcodeTokenRead="${gitcodeTokenRead:-${GITCODE_TOKEN_READ}}"
+export gitcodeTokenWrite="${gitcodeTokenWrite:-${GITCODE_TOKEN_WRITE}}"
+
+# build 阶段需要代码平台 token；M3 的 install phase 不经过此检查
+function require_code_tokens() {
+    if [[ "${platform}" == "github" ]]; then
+        return 0
+    fi
+    : "${GITCODE_TOKEN_READ:?GITCODE_TOKEN_READ is required (gitcodeTokenRead or gitcodeToken)}"
+    : "${GITCODE_TOKEN_WRITE:?GITCODE_TOKEN_WRITE is required (gitcodeTokenWrite or gitcodeToken)}"
+}
+
 if [[ ${platform} == "github" ]]; then
     repo_server_test_tail="-github"
     pr=https://github.com/${repo_owner}/${repo}/pull/${prid}
@@ -78,16 +99,17 @@ function update_config() {
     local config_file="${shell_path}/ci_guard/conf/config.yaml"
     # 敏感值通过环境变量进入子进程，不出现在 sed/awk 等命令的 argv 中；
     # 按行替换目标 key，保留注释、空行、缩进与 variant_macros 等嵌套结构
-    export gitcodeToken MysqlUserPasswd buddy repo_owner repo_server WORKSPACE arch \
-        prid repo committer MysqldbHost MysqldbPort commentid tbranch ebs_server platform variant
+    export MysqlUserPasswd buddy repo_owner repo_server WORKSPACE arch \
+        prid repo committer MysqldbHost MysqldbPort commentid tbranch ebs_server platform variant \
+        GITCODE_TOKEN_READ GITCODE_TOKEN_WRITE
     python3 - "${config_file}" <<'PY'
 import os
 import sys
 
 path = sys.argv[1]
 values = {
-    "atomgit_token": os.environ.get("gitcodeToken", ""),
-    "atomgit_write_token": os.environ.get("gitcodeToken", ""),
+    "atomgit_token": os.environ.get("GITCODE_TOKEN_READ", ""),
+    "atomgit_write_token": os.environ.get("GITCODE_TOKEN_WRITE", ""),
     "requires_repo": os.environ.get("buddy", ""),
     "warehouse_owner": os.environ.get("repo_owner", ""),
     "files_server": os.environ.get("repo_server", ""),
@@ -254,7 +276,7 @@ function abi_compare() {
     pr_commit_json_file="${WORKSPACE}/pr_commit_json_file"
     # comment_file="${repo}_${prid}_${arch}_comment"
     if [[ ${platform} != "github" ]]; then
-        curl -H "Authorization: Bearer ${gitcodeToken}" https://api.atomgit.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files >$pr_commit_json_file
+        curl -H "Authorization: Bearer ${gitcodeTokenRead}" https://api.atomgit.com/api/v5/repos/${repo_owner}/${repo}/pulls/${prid}/files >$pr_commit_json_file
     fi
     compare_result="${repo}_${prid}_${arch}${variant_suffix}_compare_result"
     export PYTHONPATH=${shell_pathoe}
@@ -325,7 +347,7 @@ EOF
 
     python3 ${shell_pathoe}/src/utils/oemaker_analyse.py --branch ${tbranch} --arch ${arch} \
 	--oecp_json_path "$result_dir/report-$old_dir-$new_dir/osv.json" --owner "${repo_owner}" \
-	--repo ${repo} --atomgit_token $gitcodeToken --prid ${prid}
+	--repo ${repo} --prid ${prid}
     if [ "${CI_DEBUG:-false}" == "true" ]; then
         set -x
     fi
@@ -523,7 +545,7 @@ function print_job() {
     job_name=`echo $JOB_NAME|sed -e 's#/job/#/#g'`
     job_path="https://log-ci.openeuler.openatom.cn/job/${job_name}/$BUILD_ID/"
     body_str="${arch_display}架构构建及构建后检查：<a href=${job_path}>${job_name}/${BUILD_ID}</a>"
-    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/'${repo_owner}'/'${repo}'/pulls/'${prid}'/comments' -d '{"access_token":"'"${gitcodeToken}"'","body":"'"${body_str}"'"}' || echo "comment source pr failed"
+    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' -H "Authorization: Bearer ${gitcodeTokenWrite}" 'https://api.atomgit.com/api/v5/repos/'${repo_owner}'/'${repo}'/pulls/'${prid}'/comments' -d '{"body":"'"${body_str}"'"}' || echo "comment source pr failed"
     if [ "${CI_DEBUG:-false}" == "true" ]; then
         set -x
     fi
@@ -558,6 +580,7 @@ function fetch_support_arch_from_server() {
 
 function main() {
     trap clean_secrets EXIT
+    require_code_tokens
     # spec_list/support_arch 来源分两条链路：
     # - Jenkins：无平台制品，从文件服务器拉取 trigger 阶段上传的文件
     # - Action：AC 制品已由 build_entry.sh 的 _restore_ac_spec_files 还原到本目录
