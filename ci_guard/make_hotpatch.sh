@@ -255,12 +255,20 @@ function comment_issue(){
     echo "========== comment hotpatch link to hotpatch issue =========="
     echo "get hotpatch issue body"
     hotpatch_issue_link=`cat ${hotmetadata_xml} | grep hotpatch_issue_link | sed 's/^.*<hotpatch_issue_link>//g' | sed 's/<\/hotpatch_issue_link>.*$//g'|awk -F " " 'END {print}'`
+    # 从 issue 链接中解析所属仓库和编号，如 https://gitcode.com/openeuler/hotpatch_meta/issues/166
+    issue_owner=`echo ${hotpatch_issue_link} | awk -F '/' '{print $(NF-3)}'`
+    issue_repo=`echo ${hotpatch_issue_link} | awk -F '/' '{print $(NF-2)}'`
     issue_number=`echo ${hotpatch_issue_link}|awk -F '/' '{print $NF}'`
 
-    get_body=`curl -X GET --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/enterprises/open_euler/issues/'${issue_number}'?access_token='${token}`
-    body=`echo ${get_body} |jq -r '.body'`
-    labels=`echo ${get_body} |jq -r '.labels[].name' | tr '[:space:]' ','`
-    labels="$labels,hotpatch"
+    # 热补丁 issue 属于仓库级 issue，需使用仓库级接口
+    get_body=`curl -s -X GET --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/'${issue_owner}'/'${issue_repo}'/issues/'${issue_number}'?access_token='${token}`
+    body=`echo "${get_body}" |jq -r '.body'`
+    title=`echo "${get_body}" |jq -r '.title'`
+    if [[ -z ${body} || ${body} == "null" ]]; then
+        echo "get hotpatch issue ${hotpatch_issue_link} failed, skip comment: ${get_body}"
+        return
+    fi
+    labels=`echo "${get_body}" |jq -r '[(.labels // [])[].name, "hotpatch"] | unique | join(",")'`
 
     # 删除上次的热补丁路径
     issue_desc=`echo ${body}| sed 's/热补丁路径.*$//g'`
@@ -271,16 +279,18 @@ function comment_issue(){
 
     hotpatch_str="热补丁路径："
     updateinfo_str="热补丁信息："
+    # 评论到 issue 的链接使用固定域名，不暴露内网 dailybuild IP
+    comment_dailybuild_path="${dailybuild_path/${dailybuild_ip}/dailybuild.openeuler.openatom.cn}"
     for ar in ${ARCH[@]}
     do
         arch_rpm=`ls ${hotpatch_path}/$ar/Packages/`
         if [[ ${arch_rpm} ]]; then
-            patch_arch_rpm="${dailybuild_path}/$ar/Packages/${arch_rpm}"
+            patch_arch_rpm="${comment_dailybuild_path}/$ar/Packages/${arch_rpm}"
             hotpatch_str="${hotpatch_str}${patch_arch_rpm}\n"
         fi
         arch_updateinfo=`ls ${hotpatch_path}/$ar/hotpatch_xml/`
         if [[ ${arch_updateinfo} ]]; then
-            patch_arch_updateinfo="${dailybuild_path}/$ar/hotpatch_xml/${arch_updateinfo}"
+            patch_arch_updateinfo="${comment_dailybuild_path}/$ar/hotpatch_xml/${arch_updateinfo}"
             updateinfo_str="${updateinfo_str}${patch_arch_updateinfo}\n"
         fi
     done
@@ -290,7 +300,10 @@ function comment_issue(){
 
     echo "comment hotpatch issue"
     body="${ques}\n${metadata}\n${hotpatch_str}\n${updateinfo_str}"
-    curl -X PATCH --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/enterprises/open_euler/issues/'${issue_number} -d '{"access_token":"'"${token}"'","repo":"'"${repo}"'","body":"'"${body}"'","labels":"'"${labels}"'"}'
+    # 将拼接用的 \n 转成真实换行，避免 jq --arg 把转义符原样写入 issue
+    body=`printf "%b" "${body}"`
+    patch_data=`jq -n --arg repo "${issue_repo}" --arg title "${title}" --arg body "${body}" --arg labels "${labels}" '{repo:$repo,title:$title,body:$body,labels:$labels}'`
+    curl -s -X PATCH --header 'Content-Type: application/json;charset=UTF-8' 'https://api.atomgit.com/api/v5/repos/'${issue_owner}'/issues/'${issue_number}'?access_token='${token} -d "${patch_data}"
 
 }
 
