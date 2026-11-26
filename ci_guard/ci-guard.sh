@@ -29,7 +29,7 @@ SCRIPT_PATCH=${shell_pathoe}/src/build
 
 # 代码平台读写 token：Jenkins 由 job 绑定 gitcodeTokenRead / gitcodeTokenWrite；
 # Action 由 build_entry.sh 从 ACTION_* 映射后导出 GITCODE_TOKEN_READ / WRITE。
-# 旧 job 兼容（ADR-028）：新变量逐项优先，缺失时回退旧 gitcodeToken 并告警。
+# 旧 job 兼容：新变量逐项优先，缺失时回退旧 gitcodeToken 并告警。
 _legacy_code_token="${gitcodeToken:-}"
 if [[ -n "${_legacy_code_token}" ]] && { [[ -z "${GITCODE_TOKEN_READ:-}${gitcodeTokenRead:-}" ]] || [[ -z "${GITCODE_TOKEN_WRITE:-}${gitcodeTokenWrite:-}" ]]; }; then
     echo "[WARN] gitcodeTokenRead/gitcodeTokenWrite 未配置，回退旧 gitcodeToken" >&2
@@ -39,7 +39,7 @@ export GITCODE_TOKEN_WRITE="${GITCODE_TOKEN_WRITE:-${gitcodeTokenWrite:-${_legac
 export gitcodeTokenRead="${gitcodeTokenRead:-${GITCODE_TOKEN_READ}}"
 export gitcodeTokenWrite="${gitcodeTokenWrite:-${GITCODE_TOKEN_WRITE}}"
 
-# build 阶段需要代码平台 token；M3 的 install phase 不经过此检查
+# build 阶段需要代码平台 token；install 阶段不检查。
 function require_code_tokens() {
     if [[ "${platform}" == "github" ]]; then
         return 0
@@ -209,19 +209,48 @@ function scp_remote_service() {
     retry_command "scp -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${comment_file_path} root@${repo_server}:$fileserver_tmpfile_path"
 }
 
-function check_single_install() {
-    echo "============ Start check single install ============"
-    if [[ -n "$variant" ]]; then
-        python3 $SCRIPT_CMD install -a $arch -pr $pr -tb $tbranch -p $repo --variant $variant
-    else
-        python3 $SCRIPT_CMD install -a $arch -pr $pr -tb $tbranch -p $repo
+# verify 阶段脱敏上传 install 日志，文件名带架构/变体后缀
+function upload_install_log() {
+    local install_log="$WORKSPACE/install-logs/install.log"
+    if [[ ! -f "$install_log" ]]; then
+        echo "install log not found: ${install_log}, skip upload"
+        return 0
     fi
-    if [ $? -ne 0 ]; then
-        echo "Single install check failed"
-        scp_remote_service
+    local masked_log="${install_log}.masked"
+    if ! mask_sensitive < "$install_log" > "$masked_log"; then
+        echo "ERROR: mask_sensitive failed for ${install_log}, skip upload"
+        rm -f "$masked_log"
         return 1
     fi
-    scp_remote_service
+    local remote_log="${fileserver_tmpfile_path}/${repo}_${prid}_${arch}${variant_suffix}_install.log"
+    retry_command "scp -i ${SaveBuildRPM2Repo} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR ${masked_log} root@${repo_server}:${remote_log}"
+    local rc=$?
+    rm -f "$masked_log"
+    return ${rc}
+}
+
+function check_single_install() {
+    echo "============ Start check single install ============"
+    mkdir -p "$WORKSPACE/install-logs"
+    local install_log="$WORKSPACE/install-logs/install.log"
+    # install.sh 会删除 install-logs/*.log，先写 .tmp，结束后改名
+    local install_log_tmp="${install_log}.tmp"
+    local install_rc=0
+    # 日志落本地由 verify 上传；tee 后用 PIPESTATUS[0] 取 python 退出码
+    if [[ -n "$variant" ]]; then
+        python3 $SCRIPT_CMD install -a $arch -pr $pr -tb $tbranch -p $repo --variant $variant 2>&1 | tee "$install_log_tmp"
+        install_rc=${PIPESTATUS[0]}
+    else
+        python3 $SCRIPT_CMD install -a $arch -pr $pr -tb $tbranch -p $repo 2>&1 | tee "$install_log_tmp"
+        install_rc=${PIPESTATUS[0]}
+    fi
+    if ! mv -f "$install_log_tmp" "$install_log"; then
+        echo "warn: rename install log failed: ${install_log_tmp}"
+    fi
+    if [ $install_rc -ne 0 ]; then
+        echo "Single install check failed"
+        return 1
+    fi
     echo "End check single install"
 }
 
@@ -396,6 +425,12 @@ EOF
     echo "========== Env clean up =========="
 }
 
+function oecp_compare_run() {
+    config_oecp_db
+    # oecp 不支持 MYSQL_PWD，保留 --db-password
+    python3 ${JENKINS_HOME}/oecp/cli.py $old_dir $new_dir -o $result_dir -w $result_dir -n 2 -s $tbranch-${arch} --spec $BUILD_ROOT/home/abuild/rpmbuild/SOURCES --db-password ${MysqlUserPasswd#*:} --pull-request-id ${repo}-${prid}
+}
+
 function oecp_compare() {
     { set +x; } 2>/dev/null
     echo "========== Start oecp compare =========="
@@ -436,8 +471,7 @@ function oecp_compare() {
     fi
 
     if [[ "$(ls -A $new_dir | grep '.rpm')" && "$(ls -A $old_dir | grep '.rpm')" ]]; then
-        config_oecp_db
-        python3 ${JENKINS_HOME}/oecp/cli.py $old_dir $new_dir -o $result_dir -w $result_dir -n 2 -s $tbranch-${arch} --spec $BUILD_ROOT/home/abuild/rpmbuild/SOURCES --db-password ${MysqlUserPasswd#*:} --pull-request-id ${repo}-${prid} || echo "continue although run oecp failed"
+        with_oecp_conf_lock oecp_compare_run || echo "continue although run oecp failed"
         cat $result_dir/report-$old_dir-$new_dir/osv.json
     fi
     echo "End oecp compare"
@@ -578,24 +612,95 @@ function fetch_support_arch_from_server() {
     fi
 }
 
-function main() {
+# 构建阶段：准备环境并执行单包构建。
+function main_build() {
     trap clean_secrets EXIT
     require_code_tokens
-    # spec_list/support_arch 来源分两条链路：
-    # - Jenkins：无平台制品，从文件服务器拉取 trigger 阶段上传的文件
-    # - Action：AC 制品已由 build_entry.sh 的 _restore_ac_spec_files 还原到本目录
-    # Action 环境（workflow 注入 ACTION_PIPELINE_URL/ACTION_RUN_NUMBER，判定同 print_job）
-    # 跳过下载，避免重复拉取/覆盖制品还原的结果。
+    # 清理上一轮跳过标记；本架构无需构建时写入，供 install/verify 短路。
+    rm -f "${WORKSPACE}/.ci_skip_build"
+    # Jenkins 从文件服务器拉取；Action 已由 build_entry.sh 还原，跳过下载。
     if [[ -z "${ACTION_PIPELINE_URL:-}${ACTION_RUN_NUMBER:-}" ]]; then
         fetch_support_arch_from_server
     else
         echo "Action 环境，spec_list/support_arch 由 AC 制品还原，跳过文件服务器下载"
     fi
 
-    # 构建决策：
-    # - 无 spec_list（旧 trigger 数据）→ 保守构建，不跳过
-    # - 有 spec_list：任一 spec 无 support_arch_{spec} 文件 → 该 spec 架构不受限 → 全架构构建
-    # - 所有 spec 均有 support_arch 文件 → 取支持架构并集；当前架构不在并集 → 跳过构建
+    # 无 spec_list 或存在未限制架构的 spec 时构建；所有 spec 都不支持当前架构时跳过。
+    need_build=true
+    if [[ -f spec_list ]]; then
+        all_restricted=true
+        support_union=""
+        for spec in $(cat spec_list); do
+            if [[ ! -f "support_arch_${spec}" ]]; then
+                all_restricted=false
+                break
+            fi
+            support_union="${support_union} $(cat support_arch_${spec})"
+        done
+        if $all_restricted; then
+            base_arch="${arch%_64k}"
+            if ! echo "$support_union" | tr ' ' '\n' | grep -qx "$base_arch"; then
+                echo "arch ${arch} not in supported arch union (${support_union}), skip build"
+                need_build=false
+            fi
+        fi
+    fi
+
+    if ! $need_build; then
+        echo "============ 本架构因 ExclusiveArch 限制跳过构建 ============"
+        : >"${WORKSPACE}/.ci_skip_build"
+        return 0
+    fi
+
+    repo_owner_judge
+    remote_dir_make
+    clean_env
+    update_config
+    config_ebs
+    update_ccb
+
+    # 构建入口评论；Action 环境由 print_job 内部跳过。
+    print_job
+
+    check_single_build
+}
+
+# 安装检查阶段：不读凭证、不写 config、不发评论、不上传。
+function main_install() {
+    if [[ -f "${WORKSPACE}/.ci_skip_build" ]]; then
+        echo "============ 检测到构建跳过标记，跳过 install 检查 ============"
+        return 0
+    fi
+    check_single_install
+}
+
+# 校验阶段：license 检查、oecp/abi 比对、统一上传；license 失败计入返回码。
+function main_verify() {
+    if [[ -f "${WORKSPACE}/.ci_skip_build" ]]; then
+        echo "============ 检测到构建跳过标记，跳过 verify 检查 ============"
+        return 0
+    fi
+    # verify 是独立进程，需重新计算派生路径。
+    repo_owner_judge
+    local verify_rc=0
+    check_license || verify_rc=1
+    compare_difference
+    upload_install_log || echo "warn: install log upload failed, continue"
+    scp_remote_service
+    return ${verify_rc}
+}
+
+function main() {
+    trap clean_secrets EXIT
+    require_code_tokens
+    # Jenkins 从文件服务器拉取；Action 已由 build_entry.sh 还原，跳过下载。
+    if [[ -z "${ACTION_PIPELINE_URL:-}${ACTION_RUN_NUMBER:-}" ]]; then
+        fetch_support_arch_from_server
+    else
+        echo "Action 环境，spec_list/support_arch 由 AC 制品还原，跳过文件服务器下载"
+    fi
+
+    # 无 spec_list 或存在未限制架构的 spec 时构建；所有 spec 都不支持当前架构时跳过。
     need_build=true
     if [[ -f spec_list ]]; then
         all_restricted=true
@@ -628,8 +733,7 @@ function main() {
     config_ebs
     update_ccb
 
-    # 构建入口评论：Jenkins 环境下链接日志服务器，便于构建期间先给出日志入口；
-    # Action 环境在函数内判定跳过（见 print_job）
+    # 构建入口评论；Action 环境由 print_job 内部跳过。
     print_job
 
     # build 失败即无 rpm 产物，跳过 install/license/oecp（保持短路）；
@@ -654,4 +758,29 @@ function main() {
 
     scp_remote_service
     return ${overall_rc}
+}
+
+# 按 --phase 分发；未传 phase 走老 main()，非法值返回 2。
+function run_phase() {
+    case "${1:-}" in
+        "")
+            main
+            ;;
+        --phase=build)
+            main_build
+            ;;
+        --phase=install)
+            main_install
+            ;;
+        --phase=verify)
+            main_verify
+            ;;
+        --phase=config-ebs)
+            config_ebs
+            ;;
+        *)
+            echo "ERROR: unknown phase '${1}' (expect --phase=build|install|verify|config-ebs)" >&2
+            return 2
+            ;;
+    esac
 }

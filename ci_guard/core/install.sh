@@ -116,6 +116,12 @@ function install_rpms() {
 }
 
 function scp_install_log_to_server() {
+    # 无 SSH 凭据时（install 阶段）跳过包级日志上传，聚合日志由 verify 上传。
+    if [[ -z "${SaveBuildRPM2Repo:-}" || -z "${repo_server:-}" ]]; then
+        echo "skip scp install logs: no SSH credential or repo_server in install phase"
+        sudo rm -rf "$INSTALL_LOG_DIR"/*.log
+        return 0
+    fi
     echo "The installation logs are copied to the remote server."
     sudo chmod -R 755 $INSTALL_LOG_DIR/*.log
     for log in $(ls $INSTALL_LOG_DIR/*.log); do
