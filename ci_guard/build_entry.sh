@@ -13,7 +13,8 @@
 # AtomGit Action 编译门禁入口脚本
 # 对应 Jenkins 时代的 ". ${shell_path}/ci_guard/ci-guard.sh" + 调用 main()
 # 由 workflow (.atomgit/workflows/ci.yml build job) 注入 ACTION_* 环境变量，
-# 本脚本将其映射为 ci-guard.sh main() 所需的 Jenkins 变量，source 后调用 main()。
+# 本脚本将其映射为 ci-guard.sh main() 所需的 Jenkins 变量，source 后按参数调用 run_phase()
+# （未传 --phase 时走老 main()；--phase=build|install|verify|config-ebs 走对应 phase）。
 #
 # 环境变量约定（由 workflow 注入）：
 #   ACTION_SHELL_PATH:        A-guard 仓库路径
@@ -151,17 +152,26 @@ source ${shell_path}/ci_guard/ci-guard.sh
 # 还原 AC 传递的 spec_list/support_arch
 _restore_ac_spec_files
 
-# 调用主流程
-main
+# 调用主流程（--phase=build|install|verify|config-ebs；未传 phase 走老 main()）
+phase="${1:-}"
+run_phase "$@"
 BUILD_RC=$?
 echo "==== build_entry: BUILD_RC=${BUILD_RC} ===="
 
-# 导出本架构 build 成败到 records-course（随 artifact 上传），供 build-comment 汇总
 mkdir -p "${ACTION_WORKSPACE}/records-course"
-echo "${BUILD_RC}" >"${ACTION_WORKSPACE}/records-course/${repo}_${prid}_${arch}${variant_suffix}_build_rc" ||
-    echo "build_rc 文件写入失败，忽略（不影响 build 结果）"
+# build_rc 只由 build phase（或无 phase）写入，install/verify 不覆盖
+case "${phase}" in
+    "" | --phase=build)
+        echo "${BUILD_RC}" >"${ACTION_WORKSPACE}/records-course/${repo}_${prid}_${arch}${variant_suffix}_build_rc" ||
+            echo "build_rc 文件写入失败，忽略（不影响 build 结果）"
+        ;;
+    *)
+        echo "phase=${phase}，跳过 build_rc 写入（避免覆盖 build 阶段结果）"
+        ;;
+esac
 
-echo "$(date '+%F %T') build_entry arch=${arch}${variant_suffix} rc=${BUILD_RC}" \
+# build_entry.log 在任何 phase 都写入，作为 artifact 上传的锚点
+echo "$(date '+%F %T') build_entry arch=${arch}${variant_suffix} phase=${phase:-legacy} rc=${BUILD_RC}" \
     >"${ACTION_WORKSPACE}/build_entry.log"
 
 # 以 build job 的聚合退出码返回，runner 据此判定 job 成败，ci-final 再据此打 ci_successful/ci_failed
